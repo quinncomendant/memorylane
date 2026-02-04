@@ -16,7 +16,7 @@
     "make:linux": "npm run build && electron-builder --linux",
     "lint": "eslint --ext .ts,.tsx .",
     "test": "vitest",
-    "postinstall": "electron-rebuild -f -w uiohook-napi,@lancedb/lancedb,onnxruntime-node,active-win",
+    "postinstall": "electron-builder install-app-deps",
     "db:search": "tsx scripts/db-search.ts",
     "db:stats": "tsx scripts/db-stats.ts",
     "mcp:start": "tsx scripts/mcp-server.ts",
@@ -29,7 +29,6 @@
   },
   "license": "GPL-3.0-or-later",
   "devDependencies": {
-    "@electron/rebuild": "^4.0.3",
     "@types/uuid": "^10.0.0",
     "@typescript-eslint/eslint-plugin": "^5.62.0",
     "@typescript-eslint/parser": "^5.62.0",

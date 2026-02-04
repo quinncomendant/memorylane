@@ -8,6 +8,8 @@ let lastInteractionTime = 0;
 let debounceTimeoutId: NodeJS.Timeout | null = null;
 let typingSessionTimeoutId: NodeJS.Timeout | null = null;
 let isTyping = false;
+let typingSessionKeyCount = 0;
+let typingSessionStartTime = 0;
 
 // Callback for when interaction triggers a capture
 type OnInteractionCallback = (context: InteractionContext) => void;
@@ -62,7 +64,7 @@ function handleMouseClick(event: UiohookMouseEvent): void {
 
 /**
  * Handle keyboard events (if enabled)
- * Tracks "typing sessions" - triggers capture when user pauses typing
+ * Tracks "typing sessions" - emits event when user pauses typing
  */
 function handleKeyboard(event: UiohookKeyboardEvent): void {
   if (!INTERACTION_MONITOR_CONFIG.TRACK_KEYBOARD) {
@@ -71,7 +73,7 @@ function handleKeyboard(event: UiohookKeyboardEvent): void {
 
   const now = Date.now();
 
-  // Check if we're within debounce period from last capture
+  // Check if we're within debounce period from last interaction event
   if (now - lastInteractionTime < INTERACTION_MONITOR_CONFIG.DEBOUNCE_MS) {
     return;
   }
@@ -81,24 +83,33 @@ function handleKeyboard(event: UiohookKeyboardEvent): void {
     clearTimeout(typingSessionTimeoutId);
   }
 
-  // Mark that user is typing
+  // Mark that user is typing and track session
   if (!isTyping) {
     isTyping = true;
+    typingSessionKeyCount = 0;
+    typingSessionStartTime = now;
     console.log('Typing session started');
   }
+
+  // Increment key count
+  typingSessionKeyCount++;
 
   // Set timeout to detect when typing stops
   typingSessionTimeoutId = setTimeout(() => {
     if (!isTyping) return;
 
     isTyping = false;
-    lastInteractionTime = Date.now();
+    const endTime = Date.now();
+    const durationMs = endTime - typingSessionStartTime;
+    lastInteractionTime = endTime;
 
-    console.log('Typing session ended, triggering capture');
+    console.log(`Typing session ended: ${typingSessionKeyCount} keys over ${durationMs}ms`);
 
     const context: InteractionContext = {
       type: 'keyboard',
-      timestamp: lastInteractionTime,
+      timestamp: endTime,
+      keyCount: typingSessionKeyCount,
+      durationMs: durationMs,
     };
 
     // Notify all callbacks
@@ -109,6 +120,10 @@ function handleKeyboard(event: UiohookKeyboardEvent): void {
         console.error('Error in interaction callback:', error);
       }
     });
+
+    // Reset session tracking
+    typingSessionKeyCount = 0;
+    typingSessionStartTime = 0;
   }, INTERACTION_MONITOR_CONFIG.TYPING_SESSION_TIMEOUT_MS);
 }
 
@@ -163,6 +178,8 @@ export function stopInteractionMonitoring(): void {
     console.log('Stopping interaction monitoring');
     isRunning = false;
     isTyping = false;
+    typingSessionKeyCount = 0;
+    typingSessionStartTime = 0;
 
     // Clear any pending debounce
     if (debounceTimeoutId) {

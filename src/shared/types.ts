@@ -8,7 +8,6 @@ export interface Screenshot {
     height: number;
   };
   trigger: CaptureReason;  // Why was this screenshot taken
-  interaction?: InteractionContext;  // Optional interaction metadata
 }
 
 export interface CaptureReason {
@@ -24,6 +23,10 @@ export interface InteractionContext {
   // Click-specific
   clickPosition?: { x: number; y: number };
   clickedElement?: ElementInfo;
+
+  // Keyboard-specific
+  keyCount?: number;      // Number of keys pressed in typing session
+  durationMs?: number;    // Duration of typing session in milliseconds
 
   // Window/app context
   activeWindow?: {

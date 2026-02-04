@@ -2,6 +2,7 @@ import { app, Tray, Menu, nativeImage } from 'electron';
 import path from 'node:path';
 import started from 'electron-squirrel-startup';
 import * as capture from './main/capture';
+import * as interactionMonitor from './main/interaction-monitor';
 
 // Handle creating/removing shortcuts on Windows when installing/uninstalling.
 if (started) {
@@ -35,7 +36,7 @@ const createTray = () => {
 
   updateTrayMenu();
 
-  // Optional: Register a callback to log captures
+  // Subscribe to screenshot events (visual change only)
   capture.onScreenshot((screenshot) => {
     const logData: Record<string, unknown> = {
       id: screenshot.id,
@@ -48,14 +49,29 @@ const createTray = () => {
       logData.changePercent = screenshot.trigger.confidence.toFixed(2) + '%';
     }
 
-    if (screenshot.interaction) {
-      logData.interaction = screenshot.interaction.type;
-      if (screenshot.interaction.clickPosition) {
-        logData.clickPosition = screenshot.interaction.clickPosition;
-      }
+    console.log('Screenshot captured:', logData);
+  });
+
+  // Subscribe to interaction events (independent stream)
+  interactionMonitor.onInteraction((event) => {
+    const logData: Record<string, unknown> = {
+      type: event.type,
+      timestamp: new Date(event.timestamp).toISOString(),
+    };
+
+    if (event.clickPosition) {
+      logData.clickPosition = event.clickPosition;
     }
 
-    console.log('Screenshot captured:', logData);
+    if (event.keyCount) {
+      logData.keyCount = event.keyCount;
+    }
+
+    if (event.durationMs) {
+      logData.durationMs = event.durationMs;
+    }
+
+    console.log('Interaction event:', logData);
   });
 };
 
@@ -70,8 +86,16 @@ const updateTrayMenu = () => {
       click: () => {
         if (isCapturing) {
           capture.stopCapture();
+          interactionMonitor.stopInteractionMonitoring();
         } else {
           capture.startCapture();
+          // Start interaction monitoring separately
+          try {
+            interactionMonitor.startInteractionMonitoring();
+          } catch (error) {
+            console.error('Failed to start interaction monitoring:', error);
+            console.log('Continuing without interaction monitoring');
+          }
         }
         updateTrayMenu();
       },
@@ -97,6 +121,7 @@ const updateTrayMenu = () => {
       label: 'Quit',
       click: () => {
         capture.stopCapture();
+        interactionMonitor.stopInteractionMonitoring();
         app.quit();
       },
     },

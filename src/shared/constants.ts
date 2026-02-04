@@ -3,12 +3,14 @@ export const CAPTURE_INTERVAL_MS = 30_000; // 30 seconds
 // Visual Change Detection Configuration
 export const VISUAL_DETECTOR_CONFIG = {
   ENABLED: true,
-  SAMPLE_INTERVAL_MS: 3000,           // Check every 3s
-  CHANGE_THRESHOLD_PERCENT: 7.5,      // 7.5% pixels changed
+  SAMPLE_INTERVAL_MS: 500,           // Check every 500ms
+  CHANGE_THRESHOLD_PERCENT: 7.5,      // 7.5% confidence threshold
+  HIGH_CONFIDENCE_THRESHOLD: 20,      // Above this = capture immediately (no debounce)
   SAMPLE_WIDTH: 320,                   // Downscale for performance
   SAMPLE_HEIGHT: 180,
   FALLBACK_TO_TIMER: true,            // Capture after N seconds regardless
-  FALLBACK_TIMER_MS: 120_000,         // 2 minutes max between captures
+  FALLBACK_TIMER_MS: 300_000,         // 5 minutes max between captures
+  DEBOUNCE_MS: 15_000,                // 15 seconds debounce for low confidence changes
 };
 
 // User Interaction Monitoring Configuration
@@ -26,7 +28,7 @@ export const INTERACTION_MONITOR_CONFIG = {
 export const CONTEXT_CAPTURE_CONFIG = {
   ENABLED: false,                     // Disabled by default (requires permissions)
   CAPTURE_ACTIVE_WINDOW: true,
-  CAPTURE_UI_ELEMENTS: false,         // Requires accessibility permissions
+  CAPTURE_UI_ELEMENTS: true,         // Requires accessibility permissions
   CAPTURE_PRE_POST_SNAPSHOTS: false,  // Doubles storage
-  REQUEST_PERMISSIONS_ON_START: false,
+  REQUEST_PERMISSIONS_ON_START: true,
 };

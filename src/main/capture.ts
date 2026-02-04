@@ -3,10 +3,9 @@ import { app, desktopCapturer } from 'electron';
 import { v4 as uuidv4 } from 'uuid';
 import * as fs from 'fs';
 import * as path from 'path';
-import { Screenshot, OnScreenshotCallback, CaptureReason, InteractionContext } from '../shared/types';
+import { Screenshot, OnScreenshotCallback, CaptureReason } from '../shared/types';
 import { CAPTURE_INTERVAL_MS } from '../shared/constants';
 import * as visualDetector from './visual-detector';
-import * as interactionMonitor from './interaction-monitor';
 
 // Configuration
 const SCREENSHOTS_DIR = path.join(app.getPath('userData'), 'screenshots');
@@ -26,7 +25,7 @@ function ensureScreenshotsDir(): void {
 /**
  * Capture a screenshot from the primary display
  */
-export async function captureNow(reason?: CaptureReason, interaction?: InteractionContext): Promise<Screenshot> {
+export async function captureNow(reason?: CaptureReason): Promise<Screenshot> {
   ensureScreenshotsDir();
 
   // Default reason if not provided
@@ -73,7 +72,6 @@ export async function captureNow(reason?: CaptureReason, interaction?: Interacti
       height: size.height,
     },
     trigger: captureReason,
-    interaction,
   };
 
   // Notify all registered callbacks
@@ -97,7 +95,7 @@ export function startCapture(): void {
     return;
   }
 
-  console.log('Starting smart screenshot capture');
+  console.log('Starting screenshot capture (visual change + fallback timer only)');
   isCapturing = true;
 
   // Register callback for visual change detection
@@ -112,30 +110,8 @@ export function startCapture(): void {
     });
   });
 
-  // Register callback for user interactions
-  interactionMonitor.onInteraction((context) => {
-    const reason: CaptureReason = {
-      type: 'user_interaction',
-      metadata: {
-        interactionType: context.type,
-      },
-    };
-
-    captureNow(reason, context).catch((error) => {
-      console.error('Failed to capture screenshot:', error);
-    });
-  });
-
   // Start visual detection
   visualDetector.startVisualDetection();
-
-  // Start interaction monitoring
-  try {
-    interactionMonitor.startInteractionMonitoring();
-  } catch (error) {
-    console.error('Failed to start interaction monitoring:', error);
-    console.log('Continuing without interaction monitoring');
-  }
 
   // Capture immediately on start
   captureNow({ type: 'manual' }).catch((error) => {
@@ -166,9 +142,6 @@ export function stopCapture(): void {
 
   // Stop visual detection
   visualDetector.stopVisualDetection();
-
-  // Stop interaction monitoring
-  interactionMonitor.stopInteractionMonitoring();
 
   if (captureIntervalId) {
     clearInterval(captureIntervalId);

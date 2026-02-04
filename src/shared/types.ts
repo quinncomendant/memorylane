@@ -11,40 +11,37 @@ export interface Screenshot {
 }
 
 export interface CaptureReason {
-  type: 'timer' | 'visual_change' | 'user_interaction' | 'manual';
-  confidence?: number;  // For visual change detection (0-100)
+  type: 'timer' | 'baseline_change' | 'manual';
+  confidence?: number;  // Visual change percentage (0-100) for baseline_change
   metadata?: Record<string, unknown>;
 }
 
 export interface InteractionContext {
-  type: 'click' | 'keyboard' | 'scroll';
+  type: 'click' | 'keyboard' | 'scroll' | 'app_change';
   timestamp: number;
 
   // Click-specific
   clickPosition?: { x: number; y: number };
-  clickedElement?: ElementInfo;
 
   // Keyboard-specific
   keyCount?: number;      // Number of keys pressed in typing session
   durationMs?: number;    // Duration of typing session in milliseconds
 
+  // Scroll-specific
+  scrollDirection?: 'vertical' | 'horizontal';
+  scrollAmount?: number;  // Accumulated scroll delta
+
   // Window/app context
   activeWindow?: {
     title: string;
     processName: string;
-    bundleId?: string;  // macOS
   };
 
-  // State snapshots
-  preInteractionScreenshot?: string;  // filepath
-  postInteractionScreenshot?: string; // filepath
-}
-
-export interface ElementInfo {
-  label?: string;        // Button text, link text, etc.
-  role?: string;         // button, link, input, etc.
-  accessible?: boolean;  // Whether we could read it
-  hierarchy?: string[];  // Parent element labels
+  // App change-specific
+  previousWindow?: {
+    title: string;
+    processName: string;
+  };
 }
 
 export type OnScreenshotCallback = (screenshot: Screenshot) => void;

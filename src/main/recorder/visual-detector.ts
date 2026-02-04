@@ -2,13 +2,8 @@ import { desktopCapturer } from 'electron';
 import { VISUAL_DETECTOR_CONFIG } from '../../shared/constants';
 
 // State
-let previousHash: string | null = null;
-let detectorIntervalId: NodeJS.Timeout | null = null;
+let baselineHash: string | null = null;
 let isRunning = false;
-
-// Callback for when significant change is detected
-type OnChangeDetectedCallback = () => void;
-const changeCallbacks: OnChangeDetectedCallback[] = [];
 
 /**
  * Calculate difference hash (dHash) for perceptual comparison
@@ -77,10 +72,21 @@ async function captureSample(): Promise<Buffer> {
 }
 
 /**
- * Check for visual changes and trigger callbacks if threshold exceeded
- * Simplified: just calculate hamming distance and notify if >= threshold
+ * Check current screen against baseline
+ * Returns whether a significant change was detected and the difference percentage
  */
-async function checkForChanges(): Promise<void> {
+export async function checkAgainstBaseline(): Promise<{changed: boolean, difference: number}> {
+  if (!isRunning) {
+    console.log('[Visual Detector] Cannot check - not running');
+    return { changed: false, difference: 0 };
+  }
+
+  if (baselineHash === null) {
+    console.log('[Visual Detector] No baseline set - updating baseline');
+    await updateBaseline();
+    return { changed: false, difference: 0 };
+  }
+
   try {
     const currentImageData = await captureSample();
     const currentHash = calculateDHash(
@@ -89,47 +95,48 @@ async function checkForChanges(): Promise<void> {
       VISUAL_DETECTOR_CONFIG.SAMPLE_HEIGHT
     );
 
-    const difference = hammingDistance(previousHash, currentHash);
+    const difference = hammingDistance(baselineHash, currentHash);
 
-    console.log(`[Visual Detector] Hamming distance: ${difference.toFixed(1)}%`);
+    console.log(`[Visual Detector] Baseline comparison: ${difference.toFixed(1)}%`);
 
-    // Single threshold check - binary decision
-    if (difference >= VISUAL_DETECTOR_CONFIG.DHASH_THRESHOLD_PERCENT) {
-      console.log(`[Visual Detector] Significant change detected (>=${VISUAL_DETECTOR_CONFIG.DHASH_THRESHOLD_PERCENT}%) - notifying callbacks`);
-
-      // Notify all callbacks
-      changeCallbacks.forEach((callback) => {
-        try {
-          callback();
-        } catch (error) {
-          console.error('Error in change detection callback:', error);
-        }
-      });
+    const changed = difference >= VISUAL_DETECTOR_CONFIG.DHASH_THRESHOLD_PERCENT;
+    
+    if (changed) {
+      console.log(`[Visual Detector] Significant change detected (>=${VISUAL_DETECTOR_CONFIG.DHASH_THRESHOLD_PERCENT}%)`);
     }
 
-    // Store current hash for next comparison
-    previousHash = currentHash;
+    return { changed, difference };
   } catch (error) {
-    console.error('Error checking for visual changes:', error);
+    console.error('Error checking against baseline:', error);
+    return { changed: false, difference: 0 };
   }
 }
 
 /**
- * Manually trigger an immediate visual check
- * Used by coordinator when interaction occurs
+ * Update the baseline to the current screen state
+ * Call this after capturing a screenshot or on startup
  */
-export function triggerImmediateCheck(): void {
+export async function updateBaseline(): Promise<void> {
   if (!isRunning) {
-    console.log('[Visual Detector] Cannot trigger check - not running');
+    console.log('[Visual Detector] Cannot update baseline - not running');
     return;
   }
 
-  console.log('[Visual Detector] Immediate check triggered');
-  checkForChanges();
+  try {
+    const currentImageData = await captureSample();
+    baselineHash = calculateDHash(
+      currentImageData,
+      VISUAL_DETECTOR_CONFIG.SAMPLE_WIDTH,
+      VISUAL_DETECTOR_CONFIG.SAMPLE_HEIGHT
+    );
+    console.log('[Visual Detector] Baseline updated');
+  } catch (error) {
+    console.error('Error updating baseline:', error);
+  }
 }
 
 /**
- * Start monitoring for visual changes
+ * Start visual detection (event-driven mode)
  */
 export function startVisualDetection(): void {
   if (isRunning) {
@@ -142,21 +149,13 @@ export function startVisualDetection(): void {
     return;
   }
 
-  console.log(`[Visual Detector] Starting (${VISUAL_DETECTOR_CONFIG.SAMPLE_INTERVAL_MS}ms interval, ${VISUAL_DETECTOR_CONFIG.DHASH_THRESHOLD_PERCENT}% threshold)`);
+  console.log(`[Visual Detector] Starting (threshold: ${VISUAL_DETECTOR_CONFIG.DHASH_THRESHOLD_PERCENT}%)`);
   isRunning = true;
-  previousHash = null;
-
-  // Start periodic checking
-  detectorIntervalId = setInterval(() => {
-    checkForChanges();
-  }, VISUAL_DETECTOR_CONFIG.SAMPLE_INTERVAL_MS);
-
-  // Do initial check
-  checkForChanges();
+  baselineHash = null;
 }
 
 /**
- * Stop monitoring for visual changes
+ * Stop visual detection
  */
 export function stopVisualDetection(): void {
   if (!isRunning) {
@@ -166,20 +165,7 @@ export function stopVisualDetection(): void {
 
   console.log('[Visual Detector] Stopping');
   isRunning = false;
-
-  if (detectorIntervalId) {
-    clearInterval(detectorIntervalId);
-    detectorIntervalId = null;
-  }
-
-  previousHash = null;
-}
-
-/**
- * Register a callback to be notified when significant changes are detected
- */
-export function onChangeDetected(callback: OnChangeDetectedCallback): void {
-  changeCallbacks.push(callback);
+  baselineHash = null;
 }
 
 /**

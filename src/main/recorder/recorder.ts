@@ -4,16 +4,13 @@ import { v4 as uuidv4 } from 'uuid';
 import * as fs from 'fs';
 import * as path from 'path';
 import { Screenshot, OnScreenshotCallback, CaptureReason } from '../../shared/types';
-import { VISUAL_DETECTOR_CONFIG } from '../../shared/constants';
 import * as visualDetector from './visual-detector';
 import * as interactionMonitor from './interaction-monitor';
-import * as coordinator from './capture-coordinator';
 
 // Configuration
 const SCREENSHOTS_DIR = path.join(app.getPath('userData'), 'screenshots');
 
 // State
-let fallbackTimerId: NodeJS.Timeout | null = null;
 const screenshotCallbacks: OnScreenshotCallback[] = [];
 let isCapturing = false;
 
@@ -91,7 +88,7 @@ export async function captureNow(reason?: CaptureReason): Promise<Screenshot> {
 }
 
 /**
- * Start capturing screenshots using smart detection
+ * Start capturing screenshots using event-driven baseline detection
  */
 export function startCapture(): void {
   if (isCapturing) {
@@ -99,49 +96,49 @@ export function startCapture(): void {
     return;
   }
 
-  console.log('[Capture] Starting screenshot capture with coordinator + visual detection + interaction monitoring');
+  console.log('[Capture] Starting screenshot capture with event-driven baseline detection');
   isCapturing = true;
 
-  // Setup coordinator callbacks
-  coordinator.onCaptureApproved(() => {
-    captureNow({ type: 'visual_change' }).catch((error) => {
-      console.error('[Capture] Failed to capture screenshot:', error);
-    });
-  });
-
-  coordinator.onImmediateCheckRequested(() => {
-    visualDetector.triggerImmediateCheck();
-  });
-
-  // Register visual detector callback
-  visualDetector.onChangeDetected(() => {
-    console.log('[Capture] Visual change callback received');
-    coordinator.registerVisualChange();
-  });
-
-  // Register interaction monitor callback
-  interactionMonitor.onInteraction((context) => {
-    console.log(`[Capture] Interaction callback received: ${context.type}`);
-    coordinator.registerInteraction();
-  });
-
-  // Start visual detection
+  // Start visual detection (no interval, just enables the module)
   visualDetector.startVisualDetection();
 
   // Start interaction monitoring
   interactionMonitor.startInteractionMonitoring();
 
-  // Start fallback timer (5 minutes)
-  fallbackTimerId = setInterval(() => {
-    const timeSinceLastCapture = coordinator.getTimeSinceLastCapture();
-    if (timeSinceLastCapture >= VISUAL_DETECTOR_CONFIG.FALLBACK_TIMER_MS) {
-      console.log(`[Capture] Fallback timer fired (${(timeSinceLastCapture / 1000).toFixed(0)}s since last capture)`);
-      coordinator.registerTimerTrigger();
-      captureNow({ type: 'timer' }).catch((error) => {
-        console.error('[Capture] Failed to capture screenshot:', error);
+  // Capture initial baseline screenshot and set it as baseline
+  captureNow({ type: 'manual' })
+    .then(async () => {
+      console.log('[Capture] Initial baseline screenshot captured');
+      await visualDetector.updateBaseline();
+      console.log('[Capture] Baseline set');
+    })
+    .catch((error) => {
+      console.error('[Capture] Failed to capture initial baseline:', error);
+    });
+
+  // Register interaction monitor callback
+  interactionMonitor.onInteraction(async (context) => {
+    console.log(`[Capture] Interaction detected: ${context.type}`);
+    
+    // Check visual change against baseline
+    const result = await visualDetector.checkAgainstBaseline();
+    
+    if (result.changed) {
+      console.log(`[Capture] Visual change detected (${result.difference.toFixed(1)}%) - capturing new screenshot`);
+      
+      // Capture new screenshot
+      await captureNow({ 
+        type: 'baseline_change',
+        confidence: result.difference,
       });
+      
+      // Update baseline to new screenshot
+      await visualDetector.updateBaseline();
+      console.log('[Capture] Baseline updated to new screenshot');
+    } else {
+      console.log(`[Capture] No significant change (${result.difference.toFixed(1)}%) - keeping current baseline`);
     }
-  }, VISUAL_DETECTOR_CONFIG.FALLBACK_TIMER_MS);
+  });
 }
 
 /**
@@ -161,15 +158,6 @@ export function stopCapture(): void {
 
   // Stop interaction monitoring
   interactionMonitor.stopInteractionMonitoring();
-
-  // Stop fallback timer
-  if (fallbackTimerId) {
-    clearInterval(fallbackTimerId);
-    fallbackTimerId = null;
-  }
-
-  // Reset coordinator
-  coordinator.reset();
 }
 
 /**

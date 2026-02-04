@@ -4,7 +4,7 @@ import { defineConfig } from 'vite';
 export default defineConfig({
   build: {
     rollupOptions: {
-      external: ['uiohook-napi', '@lancedb/lancedb', 'onnxruntime-node', 'onnxruntime-common', 'sharp'],
+      external: ['uiohook-napi', '@lancedb/lancedb', 'onnxruntime-node', 'onnxruntime-common', 'sharp', 'active-win'],
     },
   },
 });

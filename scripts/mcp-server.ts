@@ -13,10 +13,11 @@
  */
 
 import { MemoryLaneMCPServer } from '../src/main/mcp/server';
+import { getDefaultDbPath } from '../src/main/paths';
 
 async function main() {
   const server = new MemoryLaneMCPServer();
-  await server.start();
+  await server.start(getDefaultDbPath());
 }
 
 main().catch((error) => {

@@ -76,18 +76,18 @@ Add a minimal MCP server to MemoryLane that exposes one `search_context` tool, p
 
 ---
 
-### 4. MCP Server: Implement `search_context` Tool
+### 4. MCP Server: Implement `search_context` Tool ✅
 
 **Summary**: Add the core search tool to the MCP server.
 
 **Why**: This is the main value-add - letting AI assistants search user context.
 
 **Acceptance Criteria**:
-- [ ] Tool is registered with name `search_context`
-- [ ] Accepts `query` parameter (string, required)
-- [ ] Accepts optional `limit` parameter (number, default 5)
-- [ ] Returns array of results with `timestamp`, `text`, and `relevance_score`
-- [ ] Uses hybrid search (vector + FTS) via `EventProcessor`
+- [x] Tool is registered with name `search_context`
+- [x] Accepts `query` parameter (string, required)
+- [x] Accepts optional `limit` parameter (number, default 5)
+- [x] Returns array of results with `timestamp`, `text`, and `relevance_score`
+- [x] Uses hybrid search (vector + FTS) via `EventProcessor`
 
 **Technical Notes**:
 - Wire up to existing `EventProcessor.search()` method

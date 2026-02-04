@@ -63,18 +63,18 @@ export class EventProcessor {
   /**
    * Search for events using both vector similarity and FTS.
    */
-  public async search(query: string): Promise<{ fts: StoredEvent[], vector: StoredEvent[] }> {
-    console.log(`[Search] Query: "${query}"`);
+  public async search(query: string, limit = 5): Promise<{ fts: StoredEvent[], vector: StoredEvent[] }> {
+    console.log(`[Search] Query: "${query}" (Limit: ${limit})`);
 
     // 1. Generate embedding for vector search
     const queryVector = await this.embeddingService.generateEmbedding(query);
 
     // 2. Vector search
-    const vectorResults = await this.storageService.searchVectors(queryVector, 5);
+    const vectorResults = await this.storageService.searchVectors(queryVector, limit);
     console.log(`[Search] Vector results: ${vectorResults.length}`);
 
     // 3. FTS search
-    const ftsResults = await this.storageService.searchFTS(query, 5);
+    const ftsResults = await this.storageService.searchFTS(query, limit);
     console.log(`[Search] FTS results: ${ftsResults.length}`);
 
     return { fts: ftsResults, vector: vectorResults };

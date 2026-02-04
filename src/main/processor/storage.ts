@@ -1,6 +1,6 @@
 import * as lancedb from '@lancedb/lancedb';
-import * as path from 'path';
 import * as fs from 'fs';
+import { getDefaultDbPath } from '../paths';
 
 export interface StoredEvent extends Record<string, unknown> {
   id: string;
@@ -23,21 +23,7 @@ export class StorageService {
    * Helper to get the default database path based on environment.
    */
   public static getDefaultDbPath(): string {
-    // Check if running in Electron (using process.versions.electron)
-    if (process.versions.electron) {
-      try {
-        // Dynamic require to avoid issues when running outside Electron (e.g., CLI tools)
-        // eslint-disable-next-line @typescript-eslint/no-var-requires
-        const { app } = require('electron');
-        const userDataPath = app.getPath('userData');
-        return path.join(userDataPath, 'lancedb');
-      } catch (e) {
-        console.warn('Failed to get Electron userData path, falling back to temp.', e);
-      }
-    }
-    
-    // Fallback for testing/Node environment or if app is not ready
-    return path.join(process.cwd(), 'temp_lancedb_storage');
+    return getDefaultDbPath();
   }
 
   /**

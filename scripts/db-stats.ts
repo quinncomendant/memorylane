@@ -8,22 +8,12 @@
  */
 
 import * as path from 'path';
-import * as os from 'os';
 import * as fs from 'fs';
 import { StorageService } from '../src/main/processor/storage';
+import { getDefaultDbPath } from '../src/main/paths';
 
 interface CLIArgs {
   dbPath: string;
-}
-
-function getDefaultDbPath(): string {
-  if (process.platform === 'darwin') {
-    return path.join(os.homedir(), 'Library', 'Application Support', 'memorylane', 'lancedb');
-  }
-  if (process.platform === 'win32') {
-    return path.join(process.env.APPDATA || '', 'memorylane', 'lancedb');
-  }
-  return path.join(os.homedir(), '.config', 'memorylane', 'lancedb');
 }
 
 function parseArgs(): CLIArgs {

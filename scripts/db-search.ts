@@ -8,30 +8,15 @@
  *   npm run db:search "your search query" --db-path /custom/path
  */
 
-import * as path from 'path';
-import * as os from 'os';
 import * as fs from 'fs';
 import { StorageService } from '../src/main/processor/storage';
 import { EmbeddingService } from '../src/main/processor/embedding';
+import { getDefaultDbPath } from '../src/main/paths';
 
 interface CLIArgs {
   query: string;
   limit: number;
   dbPath: string;
-}
-
-function getDefaultDbPath(): string {
-  // On macOS, Electron stores userData at ~/Library/Application Support/<appName>
-  // The app name is "memorylane" based on package.json
-  if (process.platform === 'darwin') {
-    return path.join(os.homedir(), 'Library', 'Application Support', 'memorylane', 'lancedb');
-  }
-  // On Windows: %APPDATA%/memorylane
-  if (process.platform === 'win32') {
-    return path.join(process.env.APPDATA || '', 'memorylane', 'lancedb');
-  }
-  // On Linux: ~/.config/memorylane
-  return path.join(os.homedir(), '.config', 'memorylane', 'lancedb');
 }
 
 function parseArgs(): CLIArgs {

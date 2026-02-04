@@ -25,7 +25,12 @@ app.on('window-all-closed', () => {
 
 const createTray = () => {
   // Try to load custom icon, fall back to default
-  const iconPath = path.join(__dirname, '../../assets/tray-icon.png');
+  // In dev: __dirname is out/main, assets is at ../../assets
+  // In production: assets are in app.asar.unpacked or resources/assets
+  const isDev = !app.isPackaged;
+  const iconPath = isDev
+    ? path.join(__dirname, '../../assets/tray-icon.png')
+    : path.join(process.resourcesPath, 'assets/tray-icon.png');
   let icon: Electron.NativeImage;
 
   try {

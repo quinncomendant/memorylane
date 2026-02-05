@@ -56,3 +56,13 @@ export interface ClassificationResult {
   summary: string;
   timestamp: number;
 }
+
+export interface SearchFilters {
+  startTime?: number;  // Unix ms
+  endTime?: number;    // Unix ms
+  appName?: string;    // Exact match
+}
+
+export interface SearchOptions extends SearchFilters {
+  limit?: number;
+}

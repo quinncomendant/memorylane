@@ -1,6 +1,7 @@
 import * as lancedb from '@lancedb/lancedb';
 import * as fs from 'fs';
 import { getDefaultDbPath } from '../paths';
+import { SearchFilters } from '../../shared/types';
 
 export interface StoredEvent extends Record<string, unknown> {
   id: string;
@@ -72,13 +73,20 @@ export class StorageService {
       } else {
         // Create table
         this.tableInstance = await this.dbInstance.createTable(this.TABLE_NAME, data);
-        
+
         // Create FTS index on the 'text' column
         await this.tableInstance.createIndex('text', {
           config: lancedb.Index.fts(),
           replace: true
         });
         console.log('Created FTS index on "text" column.');
+
+        // Create FTS index on the 'summary' column
+        await this.tableInstance.createIndex('summary', {
+          config: lancedb.Index.fts(),
+          replace: true
+        });
+        console.log('Created FTS index on "summary" column.');
       }
     } else {
       await this.tableInstance.add(data);
@@ -147,7 +155,7 @@ export class StorageService {
     if (!this.tableInstance) {
       await this.init();
     }
-    
+
     if (!this.tableInstance) return [];
 
     const results = await this.tableInstance
@@ -156,6 +164,109 @@ export class StorageService {
       .toArray();
 
     return results.map(record => this.normalizeVector(record));
+  }
+
+  /**
+   * Builds a WHERE clause string from search filters.
+   */
+  private buildWhereClause(filters?: SearchFilters): string | null {
+    if (!filters) return null;
+
+    const conditions: string[] = [];
+
+    if (filters.startTime !== undefined) {
+      conditions.push(`timestamp >= ${filters.startTime}`);
+    }
+    if (filters.endTime !== undefined) {
+      conditions.push(`timestamp <= ${filters.endTime}`);
+    }
+    if (filters.appName !== undefined) {
+      // Escape single quotes in app name
+      const escapedAppName = filters.appName.replace(/'/g, "''");
+      conditions.push(`appName = '${escapedAppName}'`);
+    }
+
+    return conditions.length > 0 ? conditions.join(' AND ') : null;
+  }
+
+  /**
+   * Vector similarity search with optional filters.
+   */
+  public async searchVectorsWithFilters(
+    queryVector: number[],
+    limit = 5,
+    filters?: SearchFilters
+  ): Promise<StoredEvent[]> {
+    if (!this.tableInstance) {
+      await this.init();
+    }
+
+    if (!this.tableInstance) return [];
+
+    let query = this.tableInstance.vectorSearch(queryVector);
+
+    const whereClause = this.buildWhereClause(filters);
+    if (whereClause) {
+      query = query.where(whereClause);
+    }
+
+    const results = await query.limit(limit).toArray();
+
+    return results.map(record => this.normalizeVector(record));
+  }
+
+  /**
+   * FTS search on text and summary columns with optional filters.
+   * LanceDB FTS indexes are per-column, so we search both and merge results.
+   */
+  public async searchFTSWithFilters(
+    searchQuery: string,
+    limit = 5,
+    filters?: SearchFilters
+  ): Promise<StoredEvent[]> {
+    if (!this.tableInstance) {
+      await this.init();
+    }
+
+    if (!this.tableInstance) return [];
+
+    const whereClause = this.buildWhereClause(filters);
+    const uniqueResults = new Map<string, StoredEvent>();
+
+    // Search on 'text' column (OCR)
+    try {
+      let textQuery = this.tableInstance.search(searchQuery);
+      if (whereClause) {
+        textQuery = textQuery.where(whereClause);
+      }
+      const textResults = await textQuery.limit(limit).toArray();
+      textResults.forEach(record => {
+        const normalized = this.normalizeVector(record);
+        uniqueResults.set(normalized.id, normalized);
+      });
+    } catch (error) {
+      console.warn('FTS search on text column failed:', error);
+    }
+
+    // Search on 'summary' column
+    try {
+      let summaryQuery = this.tableInstance.search(searchQuery, 'summary');
+      if (whereClause) {
+        summaryQuery = summaryQuery.where(whereClause);
+      }
+      const summaryResults = await summaryQuery.limit(limit).toArray();
+      summaryResults.forEach(record => {
+        const normalized = this.normalizeVector(record);
+        if (!uniqueResults.has(normalized.id)) {
+          uniqueResults.set(normalized.id, normalized);
+        }
+      });
+    } catch (error) {
+      console.warn('FTS search on summary column failed:', error);
+    }
+
+    // Return up to limit results
+    return Array.from(uniqueResults.values()).slice(0, limit);
   }
 
   /**

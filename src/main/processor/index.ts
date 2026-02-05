@@ -2,7 +2,7 @@ import * as fs from 'fs';
 import { extractText } from './ocr';
 import { EmbeddingService } from './embedding';
 import { StorageService, StoredEvent } from './storage';
-import { Screenshot, InteractionContext } from '../../shared/types';
+import { Screenshot, InteractionContext, SearchOptions, SearchFilters } from '../../shared/types';
 import { SemanticClassifierService } from './semantic-classifier';
 
 export class EventProcessor {
@@ -90,7 +90,8 @@ export class EventProcessor {
           }
 
           // 3. Store START screenshot's data (OCR + summary)
-          const vector = await this.embeddingService.generateEmbedding(this.startOcrText);
+          // Embed summary for better semantic search, fall back to OCR if no summary
+          const vector = await this.embeddingService.generateEmbedding(summary || this.startOcrText);
           const appName = this.extractAppName(allEvents);
           const storedEvent: StoredEvent = {
             id: this.startScreenshot.id,
@@ -166,18 +167,24 @@ export class EventProcessor {
   /**
    * Search for events using both vector similarity and FTS.
    */
-  public async search(query: string, limit = 5): Promise<{ fts: StoredEvent[], vector: StoredEvent[] }> {
-    console.log(`[Search] Query: "${query}" (Limit: ${limit})`);
+  public async search(
+    query: string,
+    options: SearchOptions = {}
+  ): Promise<{ fts: StoredEvent[]; vector: StoredEvent[] }> {
+    const { limit = 5, startTime, endTime, appName } = options;
+    const filters: SearchFilters = { startTime, endTime, appName };
+
+    console.log(`[Search] Query: "${query}" (Limit: ${limit}, Filters: ${JSON.stringify(filters)})`);
 
     // 1. Generate embedding for vector search
     const queryVector = await this.embeddingService.generateEmbedding(query);
 
-    // 2. Vector search
-    const vectorResults = await this.storageService.searchVectors(queryVector, limit);
+    // 2. Vector search with filters
+    const vectorResults = await this.storageService.searchVectorsWithFilters(queryVector, limit, filters);
     console.log(`[Search] Vector results: ${vectorResults.length}`);
 
-    // 3. FTS search
-    const ftsResults = await this.storageService.searchFTS(query, limit);
+    // 3. FTS search with filters
+    const ftsResults = await this.storageService.searchFTSWithFilters(query, limit, filters);
     console.log(`[Search] FTS results: ${ftsResults.length}`);
 
     return { fts: ftsResults, vector: vectorResults };

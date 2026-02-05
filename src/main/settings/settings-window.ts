@@ -48,11 +48,15 @@ let classifierService: SemanticClassifierService | null = null;
  * Initialize IPC handlers for settings
  */
 export function initSettingsIPC(apiKeyManager: ApiKeyManager, classifier?: SemanticClassifierService): void {
+  console.log('[SettingsIPC] Initializing IPC handlers...');
   classifierService = classifier || null;
 
   // Get current key status
   ipcMain.handle('settings:getKeyStatus', () => {
-    return apiKeyManager.getKeyStatus();
+    console.log('[SettingsIPC] settings:getKeyStatus handler called');
+    const status = apiKeyManager.getKeyStatus();
+    console.log('[SettingsIPC] Returning status:', status);
+    return status;
   });
 
   // Save API key

@@ -17,8 +17,9 @@ interface SettingsAPI {
   openExternal: (url: string) => Promise<void>;
 }
 
-// Access the API exposed by preload script
-const settingsAPI = (window as unknown as { settingsAPI: SettingsAPI }).settingsAPI;
+function getSettingsAPI(): SettingsAPI | undefined {
+  return (window as unknown as { settingsAPI?: SettingsAPI }).settingsAPI;
+}
 
 const apiKeyInput = document.getElementById('api-key-input') as HTMLInputElement;
 const toggleVisibilityBtn = document.getElementById('toggle-visibility') as HTMLButtonElement;
@@ -27,13 +28,33 @@ const saveButton = document.getElementById('save-button') as HTMLButtonElement;
 const deleteButton = document.getElementById('delete-button') as HTMLButtonElement;
 const statusDiv = document.getElementById('status') as HTMLDivElement;
 const messageDiv = document.getElementById('message') as HTMLDivElement;
-const getKeyLink = document.getElementById('get-key-link') as HTMLAnchorElement;
 
 let isPasswordVisible = false;
 
-async function loadKeyStatus(): Promise<void> {
-  const status = await settingsAPI.getKeyStatus();
-  updateStatusDisplay(status);
+function showStatusError(message: string): void {
+  const baseClasses = 'mb-4 p-3 rounded-lg text-sm font-medium flex items-center gap-2';
+  statusDiv.className = `${baseClasses} bg-red-900/30 text-red-400 border border-red-700/50`;
+  statusDiv.textContent = message;
+  deleteButton.disabled = true;
+}
+
+async function loadKeyStatus(retryCount = 0): Promise<void> {
+  const api = getSettingsAPI();
+  if (!api) {
+    if (retryCount < 3) {
+      setTimeout(() => loadKeyStatus(retryCount + 1), 100);
+      return;
+    }
+    showStatusError('Settings API unavailable');
+    return;
+  }
+
+  try {
+    const status = await api.getKeyStatus();
+    updateStatusDisplay(status);
+  } catch {
+    showStatusError('Failed to load key status');
+  }
 }
 
 function updateStatusDisplay(status: KeyStatus): void {
@@ -57,12 +78,7 @@ function updateStatusDisplay(status: KeyStatus): void {
 function showMessage(text: string, type: 'success' | 'error'): void {
   messageDiv.textContent = text;
   const baseClasses = 'mt-3 text-sm font-medium min-h-[20px]';
-  
-  if (type === 'success') {
-    messageDiv.className = `${baseClasses} text-zinc-300`;
-  } else {
-    messageDiv.className = `${baseClasses} text-zinc-400`;
-  }
+  messageDiv.className = `${baseClasses} ${type === 'success' ? 'text-zinc-300' : 'text-zinc-400'}`;
 
   setTimeout(() => {
     messageDiv.textContent = '';
@@ -96,7 +112,7 @@ saveButton.addEventListener('click', async () => {
   saveButton.disabled = true;
   saveButton.textContent = 'Saving...';
 
-  const result = await settingsAPI.saveApiKey(key);
+  const result = await getSettingsAPI()!.saveApiKey(key);
 
   saveButton.disabled = false;
   saveButton.textContent = 'Save';
@@ -114,7 +130,7 @@ deleteButton.addEventListener('click', async () => {
   deleteButton.disabled = true;
   deleteButton.textContent = 'Deleting...';
 
-  const result = await settingsAPI.deleteApiKey();
+  const result = await getSettingsAPI()!.deleteApiKey();
 
   deleteButton.textContent = 'Delete';
 
@@ -127,17 +143,12 @@ deleteButton.addEventListener('click', async () => {
   }
 });
 
-getKeyLink.addEventListener('click', (e) => {
-  e.preventDefault();
-  settingsAPI.openExternal('https://openrouter.ai/keys');
-});
-
-// Handle Enter key in input
 apiKeyInput.addEventListener('keydown', (e) => {
   if (e.key === 'Enter') {
     saveButton.click();
   }
 });
 
-// Load initial status
+window.addEventListener('focus', () => loadKeyStatus());
+
 loadKeyStatus();

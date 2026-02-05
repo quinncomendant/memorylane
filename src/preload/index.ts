@@ -3,11 +3,18 @@
 
 import { contextBridge, ipcRenderer, shell } from 'electron';
 
+console.log('[Preload] Script loading...');
+
 // Expose settings API to renderer
 contextBridge.exposeInMainWorld('settingsAPI', {
-  getKeyStatus: () => ipcRenderer.invoke('settings:getKeyStatus'),
+  getKeyStatus: () => {
+    console.log('[Preload] getKeyStatus called, invoking IPC...');
+    return ipcRenderer.invoke('settings:getKeyStatus');
+  },
   saveApiKey: (key: string) => ipcRenderer.invoke('settings:saveApiKey', key),
   deleteApiKey: () => ipcRenderer.invoke('settings:deleteApiKey'),
   close: () => ipcRenderer.send('settings:close'),
   openExternal: (url: string) => shell.openExternal(url),
 });
+
+console.log('[Preload] settingsAPI exposed to renderer');

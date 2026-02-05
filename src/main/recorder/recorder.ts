@@ -6,6 +6,7 @@ import * as path from 'path';
 import { Screenshot, OnScreenshotCallback, CaptureReason } from '../../shared/types';
 import * as visualDetector from './visual-detector';
 import * as interactionMonitor from './interaction-monitor';
+import log from '../logger';
 
 // Configuration
 const SCREENSHOTS_DIR = path.join(app.getPath('userData'), 'screenshots');
@@ -73,14 +74,14 @@ export async function captureNow(reason?: CaptureReason): Promise<Screenshot> {
     trigger: captureReason,
   };
 
-  console.log(`[Capture] Screenshot saved: ${filename} (reason: ${captureReason.type})`);
+  log.info(`[Capture] Screenshot saved: ${filename} (reason: ${captureReason.type})`);
 
   // Notify all registered callbacks
   screenshotCallbacks.forEach((callback) => {
     try {
       callback(screenshot);
     } catch (error) {
-      console.error('Error in screenshot callback:', error);
+      log.error('Error in screenshot callback:', error);
     }
   });
 
@@ -92,11 +93,11 @@ export async function captureNow(reason?: CaptureReason): Promise<Screenshot> {
  */
 export function startCapture(): void {
   if (isCapturing) {
-    console.log('[Capture] Already running');
+    log.info('[Capture] Already running');
     return;
   }
 
-  console.log('[Capture] Starting screenshot capture with event-driven baseline detection');
+  log.info('[Capture] Starting screenshot capture with event-driven baseline detection');
   isCapturing = true;
 
   // Start visual detection (no interval, just enables the module)
@@ -108,23 +109,23 @@ export function startCapture(): void {
   // Capture initial baseline screenshot and set it as baseline
   captureNow({ type: 'manual' })
     .then(async () => {
-      console.log('[Capture] Initial baseline screenshot captured');
+      log.info('[Capture] Initial baseline screenshot captured');
       await visualDetector.updateBaseline();
-      console.log('[Capture] Baseline set');
+      log.info('[Capture] Baseline set');
     })
     .catch((error) => {
-      console.error('[Capture] Failed to capture initial baseline:', error);
+      log.error('[Capture] Failed to capture initial baseline:', error);
     });
 
   // Register interaction monitor callback
   interactionMonitor.onInteraction(async (context) => {
-    console.log(`[Capture] Interaction detected: ${context.type}`);
+    log.info(`[Capture] Interaction detected: ${context.type}`);
     
     // Check visual change against baseline
     const result = await visualDetector.checkAgainstBaseline();
     
     if (result.changed) {
-      console.log(`[Capture] Visual change detected (${result.difference.toFixed(1)}%) - capturing new screenshot`);
+      log.info(`[Capture] Visual change detected (${result.difference.toFixed(1)}%) - capturing new screenshot`);
       
       // Capture new screenshot
       await captureNow({ 
@@ -134,9 +135,9 @@ export function startCapture(): void {
       
       // Update baseline to new screenshot
       await visualDetector.updateBaseline();
-      console.log('[Capture] Baseline updated to new screenshot');
+      log.info('[Capture] Baseline updated to new screenshot');
     } else {
-      console.log(`[Capture] No significant change (${result.difference.toFixed(1)}%) - keeping current baseline`);
+      log.info(`[Capture] No significant change (${result.difference.toFixed(1)}%) - keeping current baseline`);
     }
   });
 }
@@ -146,11 +147,11 @@ export function startCapture(): void {
  */
 export function stopCapture(): void {
   if (!isCapturing) {
-    console.log('[Capture] Not running');
+    log.info('[Capture] Not running');
     return;
   }
 
-  console.log('[Capture] Stopping screenshot capture');
+  log.info('[Capture] Stopping screenshot capture');
   isCapturing = false;
 
   // Stop visual detection

@@ -3,6 +3,7 @@ import activeWin from 'active-win';
 import { DEFAULT_INTERACTION_MONITOR_CONFIG } from '../../shared/constants';
 import { InteractionContext, CaptureSettings } from '../../shared/types';
 import { CaptureSettingsManager } from '../settings/capture-settings-manager';
+import log from '../logger';
 
 // State
 let isRunning = false;
@@ -21,15 +22,15 @@ export function initInteractionMonitor(manager: CaptureSettingsManager): void {
       if (appChangeIntervalId && DEFAULT_INTERACTION_MONITOR_CONFIG.TRACK_APP_CHANGE) {
         clearInterval(appChangeIntervalId);
         appChangeIntervalId = setInterval(() => {
-          checkAppChange().catch(console.error);
+          checkAppChange().catch(log.error);
         }, DEFAULT_INTERACTION_MONITOR_CONFIG.APP_CHANGE_POLL_MS);
-        console.log('[Interaction Monitor] App change polling restarted with updated settings');
+        log.info('[Interaction Monitor] App change polling restarted with updated settings');
       }
     }
-    console.log('[Interaction Monitor] Settings changed:', settings);
+    log.info('[Interaction Monitor] Settings changed:', settings);
   });
 
-  console.log('[Interaction Monitor] Initialized with settings manager');
+  log.info('[Interaction Monitor] Initialized with settings manager');
 }
 
 /**
@@ -96,7 +97,7 @@ function handleMouseClick(event: UiohookMouseEvent): void {
     try {
       callback(context);
     } catch (error) {
-      console.error('Error in interaction callback:', error);
+      log.error('Error in interaction callback:', error);
     }
   });
 }
@@ -123,7 +124,7 @@ function handleKeyboard(): void {
     isTyping = true;
     typingSessionKeyCount = 0;
     typingSessionStartTime = now;
-    console.log('[Interaction Monitor] Typing session started');
+    log.info('[Interaction Monitor] Typing session started');
   }
 
   // Increment key count
@@ -140,7 +141,7 @@ function handleKeyboard(): void {
     const endTime = Date.now() - typingTimeout;
     const durationMs = endTime - typingSessionStartTime - typingTimeout;
 
-    console.log(`[Interaction Monitor] Typing session ended: ${typingSessionKeyCount} keys over ${durationMs}ms`);
+    log.info(`[Interaction Monitor] Typing session ended: ${typingSessionKeyCount} keys over ${durationMs}ms`);
 
     const context: InteractionContext = {
       type: 'keyboard',
@@ -154,7 +155,7 @@ function handleKeyboard(): void {
       try {
         callback(context);
       } catch (error) {
-        console.error('Error in interaction callback:', error);
+        log.error('Error in interaction callback:', error);
       }
     });
 
@@ -187,7 +188,7 @@ function handleScroll(event: UiohookWheelEvent): void {
     scrollSessionAmount = 0;
     scrollSessionStartTime = now;
     scrollSessionDirection = event.direction === 3 ? 'vertical' : 'horizontal'; // WheelDirection.VERTICAL = 3
-    console.log('[Interaction Monitor] Scroll session started');
+    log.info('[Interaction Monitor] Scroll session started');
   }
 
   // Accumulate scroll amount
@@ -204,7 +205,7 @@ function handleScroll(event: UiohookWheelEvent): void {
     const endTime = Date.now() - scrollTimeout;
     const durationMs = endTime - scrollSessionStartTime;
 
-    console.log(`[Interaction Monitor] Scroll session ended: ${scrollSessionAmount} rotation over ${durationMs}ms`);
+    log.info(`[Interaction Monitor] Scroll session ended: ${scrollSessionAmount} rotation over ${durationMs}ms`);
 
     const context: InteractionContext = {
       type: 'scroll',
@@ -218,7 +219,7 @@ function handleScroll(event: UiohookWheelEvent): void {
       try {
         callback(context);
       } catch (error) {
-        console.error('Error in interaction callback:', error);
+        log.error('Error in interaction callback:', error);
       }
     });
 
@@ -255,7 +256,7 @@ async function checkAppChange(): Promise<void> {
         (previousWindow.title !== current.title || 
          previousWindow.processName !== current.processName)) {
       
-      console.log(`[Interaction Monitor] App changed from ${previousWindow.processName} to ${current.processName}`);
+      log.info(`[Interaction Monitor] App changed from ${previousWindow.processName} to ${current.processName}`);
 
       const context: InteractionContext = {
         type: 'app_change',
@@ -269,7 +270,7 @@ async function checkAppChange(): Promise<void> {
         try {
           callback(context);
         } catch (error) {
-          console.error('Error in interaction callback:', error);
+          log.error('Error in interaction callback:', error);
         }
       });
     }
@@ -277,7 +278,7 @@ async function checkAppChange(): Promise<void> {
     // Update previous window
     previousWindow = current;
   } catch (error) {
-    console.error('[Interaction Monitor] Error checking active window:', error);
+    log.error('[Interaction Monitor] Error checking active window:', error);
   }
 }
 
@@ -286,18 +287,18 @@ async function checkAppChange(): Promise<void> {
  */
 export function startInteractionMonitoring(): void {
   if (isRunning) {
-    console.log('[Interaction Monitor] Already running');
+    log.info('[Interaction Monitor] Already running');
     return;
   }
 
   const config = getConfig();
   if (!config.ENABLED) {
-    console.log('[Interaction Monitor] Disabled in config');
+    log.info('[Interaction Monitor] Disabled in config');
     return;
   }
 
   try {
-    console.log('[Interaction Monitor] Starting');
+    log.info('[Interaction Monitor] Starting');
     isRunning = true;
 
     // Register event handlers
@@ -315,20 +316,20 @@ export function startInteractionMonitoring(): void {
 
     // Start the hook
     uIOhook.start();
-    console.log('[Interaction Monitor] uiohook started successfully');
+    log.info('[Interaction Monitor] uiohook started successfully');
 
     // Start app change polling
     if (config.TRACK_APP_CHANGE) {
       // Initialize current window
-      checkAppChange().catch(console.error);
+      checkAppChange().catch(log.error);
 
       appChangeIntervalId = setInterval(() => {
-        checkAppChange().catch(console.error);
+        checkAppChange().catch(log.error);
       }, config.APP_CHANGE_POLL_MS);
-      console.log('[Interaction Monitor] App change polling started');
+      log.info('[Interaction Monitor] App change polling started');
     }
   } catch (error) {
-    console.error('[Interaction Monitor] Failed to start:', error);
+    log.error('[Interaction Monitor] Failed to start:', error);
     isRunning = false;
     throw error;
   }
@@ -339,12 +340,12 @@ export function startInteractionMonitoring(): void {
  */
 export function stopInteractionMonitoring(): void {
   if (!isRunning) {
-    console.log('[Interaction Monitor] Not running');
+    log.info('[Interaction Monitor] Not running');
     return;
   }
 
   try {
-    console.log('[Interaction Monitor] Stopping');
+    log.info('[Interaction Monitor] Stopping');
     isRunning = false;
     isTyping = false;
     typingSessionKeyCount = 0;
@@ -378,7 +379,7 @@ export function stopInteractionMonitoring(): void {
     // Remove event listeners
     uIOhook.removeAllListeners();
   } catch (error) {
-    console.error('[Interaction Monitor] Failed to stop:', error);
+    log.error('[Interaction Monitor] Failed to stop:', error);
   }
 }
 

@@ -1,6 +1,7 @@
 import { desktopCapturer } from 'electron';
 import { DEFAULT_VISUAL_DETECTOR_CONFIG } from '../../shared/constants';
 import { CaptureSettingsManager } from '../settings/capture-settings-manager';
+import log from '../logger';
 
 // State
 let baselineHash: string | null = null;
@@ -12,7 +13,7 @@ let settingsManager: CaptureSettingsManager | null = null;
  */
 export function initVisualDetector(manager: CaptureSettingsManager): void {
   settingsManager = manager;
-  console.log('[Visual Detector] Initialized with settings manager');
+  log.info('[Visual Detector] Initialized with settings manager');
 }
 
 /**
@@ -104,12 +105,12 @@ async function captureSample(): Promise<Buffer> {
  */
 export async function checkAgainstBaseline(): Promise<{changed: boolean, difference: number}> {
   if (!isRunning) {
-    console.log('[Visual Detector] Cannot check - not running');
+    log.info('[Visual Detector] Cannot check - not running');
     return { changed: false, difference: 0 };
   }
 
   if (baselineHash === null) {
-    console.log('[Visual Detector] No baseline set - updating baseline');
+    log.info('[Visual Detector] No baseline set - updating baseline');
     await updateBaseline();
     return { changed: false, difference: 0 };
   }
@@ -125,17 +126,17 @@ export async function checkAgainstBaseline(): Promise<{changed: boolean, differe
 
     const difference = hammingDistance(baselineHash, currentHash);
 
-    console.log(`[Visual Detector] Baseline comparison: ${difference.toFixed(1)}%`);
+    log.info(`[Visual Detector] Baseline comparison: ${difference.toFixed(1)}%`);
 
     const changed = difference >= config.DHASH_THRESHOLD_PERCENT;
 
     if (changed) {
-      console.log(`[Visual Detector] Significant change detected (>=${config.DHASH_THRESHOLD_PERCENT}%)`);
+      log.info(`[Visual Detector] Significant change detected (>=${config.DHASH_THRESHOLD_PERCENT}%)`);
     }
 
     return { changed, difference };
   } catch (error) {
-    console.error('Error checking against baseline:', error);
+    log.error('Error checking against baseline:', error);
     return { changed: false, difference: 0 };
   }
 }
@@ -146,7 +147,7 @@ export async function checkAgainstBaseline(): Promise<{changed: boolean, differe
  */
 export async function updateBaseline(): Promise<void> {
   if (!isRunning) {
-    console.log('[Visual Detector] Cannot update baseline - not running');
+    log.info('[Visual Detector] Cannot update baseline - not running');
     return;
   }
 
@@ -158,9 +159,9 @@ export async function updateBaseline(): Promise<void> {
       config.SAMPLE_WIDTH,
       config.SAMPLE_HEIGHT
     );
-    console.log('[Visual Detector] Baseline updated');
+    log.info('[Visual Detector] Baseline updated');
   } catch (error) {
-    console.error('Error updating baseline:', error);
+    log.error('Error updating baseline:', error);
   }
 }
 
@@ -169,17 +170,17 @@ export async function updateBaseline(): Promise<void> {
  */
 export function startVisualDetection(): void {
   if (isRunning) {
-    console.log('[Visual Detector] Already running');
+    log.info('[Visual Detector] Already running');
     return;
   }
 
   const config = getConfig();
   if (!config.ENABLED) {
-    console.log('[Visual Detector] Disabled in config');
+    log.info('[Visual Detector] Disabled in config');
     return;
   }
 
-  console.log(`[Visual Detector] Starting (threshold: ${config.DHASH_THRESHOLD_PERCENT}%)`);
+  log.info(`[Visual Detector] Starting (threshold: ${config.DHASH_THRESHOLD_PERCENT}%)`);
   isRunning = true;
   baselineHash = null;
 }
@@ -189,11 +190,11 @@ export function startVisualDetection(): void {
  */
 export function stopVisualDetection(): void {
   if (!isRunning) {
-    console.log('[Visual Detector] Not running');
+    log.info('[Visual Detector] Not running');
     return;
   }
 
-  console.log('[Visual Detector] Stopping');
+  log.info('[Visual Detector] Stopping');
   isRunning = false;
   baselineHash = null;
 }

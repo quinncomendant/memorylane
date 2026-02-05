@@ -48,7 +48,7 @@ export type OnScreenshotCallback = (screenshot: Screenshot) => void;
 
 export interface ClassificationInput {
   startScreenshot: Screenshot;
-  endScreenshot: Screenshot;
+  endScreenshot?: Screenshot;  // Optional for single-image mode (app change)
   events: InteractionContext[];
 }
 

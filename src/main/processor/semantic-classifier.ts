@@ -62,7 +62,8 @@ export class SemanticClassifierService {
   }
 
   /**
-   * Classify user activity between two screenshots with events
+   * Classify user activity between two screenshots with events.
+   * Supports single-image mode when endScreenshot is omitted (used for app changes).
    */
   public async classify(input: ClassificationInput): Promise<string> {
     if (!this.client) {
@@ -70,18 +71,45 @@ export class SemanticClassifierService {
       return '';
     }
 
-    const { startScreenshot, endScreenshot, events } = input;
+    const { startScreenshot, endScreenshot } = input;
+    const isSingleImage = !endScreenshot;
 
     try {
-      console.log(`[SemanticClassifier] Classifying activity between ${startScreenshot.id} and ${endScreenshot.id}`);
-      console.log(`[SemanticClassifier] Events count: ${events.length}`);
+      if (isSingleImage) {
+        console.log(`[SemanticClassifier] Single-image classification for ${startScreenshot.id}`);
+      } else {
+        console.log(`[SemanticClassifier] Classifying activity between ${startScreenshot.id} and ${endScreenshot.id}`);
+      }
+      console.log(`[SemanticClassifier] Events count: ${input.events.length}`);
 
-      // Build the prompt with context
-      const prompt = this.formatPrompt(input);
+      // Build the appropriate prompt
+      const prompt = isSingleImage
+        ? this.formatSingleImagePrompt(input)
+        : this.formatPrompt(input);
 
-      // Convert screenshots to base64
+      // Convert screenshot(s) to base64
       const startImageData = this.imageToBase64(startScreenshot.filepath);
-      const endImageData = this.imageToBase64(endScreenshot.filepath);
+
+      // Build content array with proper literal types
+      const content = [
+        {
+          type: 'text' as const,
+          text: prompt,
+        },
+        {
+          type: 'image_url' as const,
+          imageUrl: { url: `data:image/png;base64,${startImageData}` },
+        },
+      ];
+
+      // Add end image only if present (two-image mode)
+      if (endScreenshot) {
+        const endImageData = this.imageToBase64(endScreenshot.filepath);
+        content.push({
+          type: 'image_url' as const,
+          imageUrl: { url: `data:image/png;base64,${endImageData}` },
+        });
+      }
 
       // Call OpenRouter API with vision model
       const response = await this.client.chat.send({
@@ -89,24 +117,7 @@ export class SemanticClassifierService {
         messages: [
           {
             role: 'user',
-            content: [
-              {
-                type: 'text',
-                text: prompt,
-              },
-              {
-                type: 'image_url',
-                imageUrl: {
-                  url: `data:image/png;base64,${startImageData}`,
-                },
-              },
-              {
-                type: 'image_url',
-                imageUrl: {
-                  url: `data:image/png;base64,${endImageData}`,
-                },
-              },
-            ],
+            content,
           },
         ],
       });
@@ -127,10 +138,10 @@ export class SemanticClassifierService {
       console.log(`[SemanticClassifier] Usage tracked - Tokens: ${promptTokens}/${completionTokens}, Cost: $${cost.toFixed(6)}`);
       console.log(`[SemanticClassifier] Total stats: ${JSON.stringify(this.usageTracker.getStats())}`);
 
-      // Store in history
+      // Store in history (use start timestamp for single-image mode)
       const result: ClassificationResult = {
         summary,
-        timestamp: endScreenshot.timestamp,
+        timestamp: endScreenshot?.timestamp ?? startScreenshot.timestamp,
       };
       this.summaryHistory.push(result);
 
@@ -179,17 +190,57 @@ export class SemanticClassifierService {
 
     // Instructions
     prompt += '## Instructions\n';
-    prompt += '- Focus on visual differences: What content appeared, disappeared, or changed?\n';
-    prompt += '- Use the events as hints to understand HOW the change happened\n';
-    prompt += '- BE SPECIFIC: Extract actual names, identifiers, and context visible in the screenshots\n';
-    prompt += '- Include: function/file names, document titles, specific UI elements, data labels\n';
-    prompt += '- Summarize the substantive action, not the mechanics\n';
-    prompt += '- Response format: ONLY the summary (5-15 words)\n\n';
+    prompt += '- Focus on visual differences: What appeared, disappeared, or changed?\n';
+    prompt += '- Use events as hints to understand HOW the change happened\n';
+    prompt += '- BE SPECIFIC: Extract file names, document titles, UI elements, data labels\n';
+    prompt += '- STRICT: Response must be ONLY 5-15 words. No explanations or analysis.\n\n';
     prompt += 'Examples:\n';
     prompt += '- "Implemented parseUserInput function in utils.ts"\n';
     prompt += '- "Filled in Q2 revenue numbers for Marketing department"\n';
     prompt += '- "Reviewed PR #142 comments on authentication refactor"\n';
     prompt += '- "Replied to email from John about project deadline"';
+
+    return prompt;
+  }
+
+  /**
+   * Format the prompt for single-image classification (used when app changes)
+   */
+  private formatSingleImagePrompt(input: ClassificationInput): string {
+    const { events } = input;
+
+    let prompt = 'You are analyzing a screenshot of a user\'s screen taken just before they switched to a different app.\n\n';
+
+    prompt += '## Task\n';
+    prompt += 'Based on this screenshot, summarize what the user was doing in this app in 5-15 words. Focus on the visible content and context.\n\n';
+
+    // Events as hints
+    if (events.length > 0) {
+      prompt += '## Hints (user interactions before leaving)\n';
+      events.forEach((event) => {
+        prompt += this.formatEvent(event) + '\n';
+      });
+      prompt += '\n';
+    }
+
+    // Previous context
+    if (this.summaryHistory.length > 0) {
+      prompt += '## Previous context\n';
+      this.summaryHistory.forEach((result) => {
+        const timeAgo = this.formatTimeAgo(Date.now() - result.timestamp);
+        prompt += `- ${timeAgo} ago: "${result.summary}"\n`;
+      });
+      prompt += '\n';
+    }
+
+    prompt += '## Instructions\n';
+    prompt += '- Describe what the user was working on based on visible content\n';
+    prompt += '- BE SPECIFIC: Extract file names, document titles, UI elements, data labels\n';
+    prompt += '- STRICT: Response must be ONLY 5-15 words, no explanations\n\n';
+    prompt += 'Examples:\n';
+    prompt += '- "Editing processScreenshot function in index.ts"\n';
+    prompt += '- "Reading PR #142 comments on auth refactor"\n';
+    prompt += '- "Composing email reply to John about deadline"';
 
     return prompt;
   }

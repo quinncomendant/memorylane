@@ -44,7 +44,7 @@ export class EventProcessor {
    * 6. Delete screenshot files after classification (or immediately if no classifier)
    */
   public async processScreenshot(screenshot: Screenshot): Promise<void> {
-    const { filepath, id, timestamp } = screenshot;
+    const { filepath, id } = screenshot;
     
     // Grab pending events and reset for next screenshot
     const events = [...this.pendingEvents];
@@ -66,73 +66,111 @@ export class EventProcessor {
       if (this.classifierService) {
         if (!this.startScreenshot) {
           // This is the START screenshot - keep file and OCR for classification
-          this.startScreenshot = screenshot;
-          this.startEvents = events;
-          this.startOcrText = text;
+          this.setStartState(screenshot, events, text);
         } else {
-          const allEvents = [...this.startEvents, ...events];
+          // Check if app changed between START and END
+          const appChanged = this.hasAppChange(events);
 
-          console.log(`[EventProcessor] START screenshot: ${this.startScreenshot.id}`);
-          console.log(`[EventProcessor] END screenshot: ${screenshot.id}`);
-
-          let summary = '';
-          try {
-            // Classification needs both screenshot files
-            summary = await this.classifierService.classify({
-              startScreenshot: this.startScreenshot,
-              endScreenshot: screenshot,
-              events: allEvents,
-            });
-            console.log(`[EventProcessor] Classification summary: ${summary}`);
-          } catch (classificationError) {
-            console.error('[EventProcessor] Classification failed:', classificationError);
-            summary = 'Classification failed';
+          if (appChanged) {
+            // App change: use single-image classification for START only
+            console.log(`[EventProcessor] App change detected, using single-image classification`);
+            const summary = await this.runClassification(this.startScreenshot, undefined, this.startEvents);
+            await this.storeAndCleanup(this.startScreenshot, this.startOcrText, summary, this.startEvents, 'app change, single-image');
+          } else {
+            // Normal flow: two-image classification (same app)
+            const allEvents = [...this.startEvents, ...events];
+            const summary = await this.runClassification(this.startScreenshot, screenshot, allEvents);
+            await this.storeAndCleanup(this.startScreenshot, this.startOcrText, summary, allEvents);
           }
 
-          // 3. Store START screenshot's data (OCR + summary)
-          // Embed summary for better semantic search, fall back to OCR if no summary
-          const vector = await this.embeddingService.generateEmbedding(summary || this.startOcrText);
-          const appName = this.extractAppName(allEvents);
-          const storedEvent: StoredEvent = {
-            id: this.startScreenshot.id,
-            timestamp: this.startScreenshot.timestamp,
-            text: this.startOcrText,
-            summary,
-            appName,
-            vector
-          };
-          await this.storageService.addEvent(storedEvent);
-          console.log(`[EventProcessor] Stored event for ${this.startScreenshot.id} (app: ${appName})`);
-
-          // Delete START screenshot (classification done, no longer needed)
-          this.deleteScreenshot(this.startScreenshot.filepath);
-
           // END becomes new START (keep its file for next classification)
-          this.startScreenshot = screenshot;
-          this.startEvents = events;
-          this.startOcrText = text;
+          this.setStartState(screenshot, events, text);
         }
       } else {
         // No classifier - store OCR only with empty summary, then delete
-        const vector = await this.embeddingService.generateEmbedding(text);
-        const appName = this.extractAppName(events);
-        const storedEvent: StoredEvent = {
-          id,
-          timestamp,
-          text,
-          summary: '',
-          appName,
-          vector
-        };
-        await this.storageService.addEvent(storedEvent);
-        console.log(`[EventProcessor] Stored event for ${id} (no classifier, app: ${appName})`);
-        this.deleteScreenshot(filepath);
+        await this.storeAndCleanup(screenshot, text, '', events, 'no classifier');
       }
       
     } catch (error) {
       console.error(`Error processing screenshot ${id}:`, error);
       throw error;
     }
+  }
+
+  /**
+   * Run classification and return summary. Handles errors gracefully.
+   */
+  private async runClassification(
+    startScreenshot: Screenshot,
+    endScreenshot: Screenshot | undefined,
+    events: InteractionContext[]
+  ): Promise<string> {
+    console.log(`[EventProcessor] START screenshot: ${startScreenshot.id}`);
+    if (endScreenshot) {
+      console.log(`[EventProcessor] END screenshot: ${endScreenshot.id}`);
+    }
+
+    try {
+      const summary = await this.classifierService!.classify({
+        startScreenshot,
+        endScreenshot,
+        events,
+      });
+      console.log(`[EventProcessor] Classification summary: ${summary}`);
+      return summary;
+    } catch (error) {
+      console.error('[EventProcessor] Classification failed:', error);
+      return 'Classification failed';
+    }
+  }
+
+  /**
+   * Store event to database and delete the screenshot file.
+   */
+  private async storeAndCleanup(
+    screenshot: Screenshot,
+    ocrText: string,
+    summary: string,
+    events: InteractionContext[],
+    logSuffix?: string
+  ): Promise<void> {
+    const vector = await this.embeddingService.generateEmbedding(summary || ocrText);
+    const appName = this.extractAppName(events);
+    const storedEvent: StoredEvent = {
+      id: screenshot.id,
+      timestamp: screenshot.timestamp,
+      text: ocrText,
+      summary,
+      appName,
+      vector
+    };
+    await this.storageService.addEvent(storedEvent);
+    
+    const suffix = logSuffix ? ` (${logSuffix}, app: ${appName})` : ` (app: ${appName})`;
+    console.log(`[EventProcessor] Stored event for ${screenshot.id}${suffix}`);
+    
+    this.deleteScreenshot(screenshot.filepath);
+  }
+
+  /**
+   * Update the START state for the next classification pair.
+   */
+  private setStartState(screenshot: Screenshot, events: InteractionContext[], ocrText: string): void {
+    this.startScreenshot = screenshot;
+    this.startEvents = events;
+    this.startOcrText = ocrText;
+  }
+
+  /**
+   * Check if there's an app change between START and END periods.
+   * Returns true if the process name changed.
+   */
+  private hasAppChange(events: InteractionContext[]): boolean {
+    return events.some(
+      (event) =>
+        event.type === 'app_change' &&
+        event.previousWindow?.processName !== event.activeWindow?.processName
+    );
   }
 
   /**

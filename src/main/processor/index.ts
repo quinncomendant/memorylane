@@ -16,7 +16,6 @@ export class EventProcessor {
   
   // Classification state - track START screenshot for START/END pairs
   private startScreenshot: Screenshot | null = null;
-  private startEvents: InteractionContext[] = [];
   private startOcrText = '';
 
   constructor(embeddingService: EmbeddingService, storageService: StorageService, classifierService?: SemanticClassifierService) {
@@ -67,7 +66,7 @@ export class EventProcessor {
       if (this.classifierService) {
         if (!this.startScreenshot) {
           // This is the START screenshot - keep file and OCR for classification
-          this.setStartState(screenshot, events, text);
+          this.setStartState(screenshot, text);
         } else {
           // Check if app changed between START and END
           const appChanged = this.hasAppChange(events);
@@ -75,17 +74,16 @@ export class EventProcessor {
           if (appChanged) {
             // App change: use single-image classification for START only
             log.info(`[EventProcessor] App change detected, using single-image classification`);
-            const summary = await this.runClassification(this.startScreenshot, undefined, this.startEvents);
-            await this.storeAndCleanup(this.startScreenshot, this.startOcrText, summary, this.startEvents, 'app change, single-image');
+            const summary = await this.runClassification(this.startScreenshot, undefined, events);
+            await this.storeAndCleanup(this.startScreenshot, this.startOcrText, summary, events, 'app change, single-image');
           } else {
             // Normal flow: two-image classification (same app)
-            const allEvents = [...this.startEvents, ...events];
-            const summary = await this.runClassification(this.startScreenshot, screenshot, allEvents);
-            await this.storeAndCleanup(this.startScreenshot, this.startOcrText, summary, allEvents);
+            const summary = await this.runClassification(this.startScreenshot, screenshot, events);
+            await this.storeAndCleanup(this.startScreenshot, this.startOcrText, summary, events);
           }
 
           // END becomes new START (keep its file for next classification)
-          this.setStartState(screenshot, events, text);
+          this.setStartState(screenshot, text);
         }
       } else {
         // No classifier - store OCR only with empty summary, then delete
@@ -156,9 +154,8 @@ export class EventProcessor {
   /**
    * Update the START state for the next classification pair.
    */
-  private setStartState(screenshot: Screenshot, events: InteractionContext[], ocrText: string): void {
+  private setStartState(screenshot: Screenshot, ocrText: string): void {
     this.startScreenshot = screenshot;
-    this.startEvents = events;
     this.startOcrText = ocrText;
   }
 
@@ -176,17 +173,28 @@ export class EventProcessor {
 
   /**
    * Extract the app name from interaction events.
-   * Looks for the most recent event with activeWindow info.
+   * Looks for the most common app name in the events.
+   * Because theoretically the app name can change during the event.
+   * For example the you have split screen with two apps and you switch between them.
    */
   private extractAppName(events: InteractionContext[]): string {
-    // Iterate backwards to find the most recent event with activeWindow
-    for (let i = events.length - 1; i >= 0; i--) {
-      const event = events[i];
-      if (event.activeWindow?.processName) {
-        return event.activeWindow.processName;
+    const counts = new Map<string, number>();
+    for (const event of events) {
+      const name = event.activeWindow?.processName;
+      if (name) {
+        counts.set(name, (counts.get(name) ?? 0) + 1);
       }
     }
-    return '';
+
+    let mostCommon = '';
+    let maxCount = 0;
+    for (const [name, count] of counts) {
+      if (count > maxCount) {
+        mostCommon = name;
+        maxCount = count;
+      }
+    }
+    return mostCommon;
   }
 
   /**
@@ -206,6 +214,7 @@ export class EventProcessor {
   /**
    * Search for events using both vector similarity and FTS.
    */
+  // TODO: review the vibecoded logic here - in searhc as well as in storage.ts
   public async search(
     query: string,
     options: SearchOptions = {}

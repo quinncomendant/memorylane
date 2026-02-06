@@ -1,3 +1,7 @@
+import { app } from 'electron'
+import * as fs from 'fs'
+import * as path from 'path'
+
 export interface UsageStats {
   requestCount: number
   promptTokens: number
@@ -6,11 +10,49 @@ export interface UsageStats {
 }
 
 export class UsageTracker {
-  private stats: UsageStats = {
-    requestCount: 0,
-    promptTokens: 0,
-    completionTokens: 0,
-    totalCost: 0,
+  private stats: UsageStats
+  private filePath: string
+
+  constructor() {
+    this.filePath = path.join(app.getPath('userData'), 'usage-stats.json')
+    this.stats = this.loadStats()
+  }
+
+  private getDefaultStats(): UsageStats {
+    return {
+      requestCount: 0,
+      promptTokens: 0,
+      completionTokens: 0,
+      totalCost: 0,
+    }
+  }
+
+  private loadStats(): UsageStats {
+    if (!fs.existsSync(this.filePath)) {
+      return this.getDefaultStats()
+    }
+
+    try {
+      const data = fs.readFileSync(this.filePath, 'utf-8')
+      const stored = JSON.parse(data) as Partial<UsageStats>
+
+      // Merge with defaults to handle schema evolution
+      return {
+        ...this.getDefaultStats(),
+        ...stored,
+      }
+    } catch (error) {
+      console.error('[UsageTracker] Error loading stats, using defaults:', error)
+      return this.getDefaultStats()
+    }
+  }
+
+  private saveStats(): void {
+    try {
+      fs.writeFileSync(this.filePath, JSON.stringify(this.stats, null, 2))
+    } catch (error) {
+      console.error('[UsageTracker] Error saving stats:', error)
+    }
   }
 
   public recordUsage(usage: {
@@ -24,6 +66,7 @@ export class UsageTracker {
     if (usage.cost !== undefined) {
       this.stats.totalCost += usage.cost
     }
+    this.saveStats()
   }
 
   public getStats(): UsageStats {
@@ -31,11 +74,7 @@ export class UsageTracker {
   }
 
   public reset(): void {
-    this.stats = {
-      requestCount: 0,
-      promptTokens: 0,
-      completionTokens: 0,
-      totalCost: 0,
-    }
+    this.stats = this.getDefaultStats()
+    this.saveStats()
   }
 }

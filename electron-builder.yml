@@ -32,7 +32,7 @@ asarUnpack:
 
 mac:
   category: public.app-category.productivity
-  identity: "MemoryLane-dev"
+  identity: "Developer ID Application: Filip Kubis (ZN3J54N7AP)"
   hardenedRuntime: true
   gatekeeperAssess: false
   entitlements: build/entitlements.mac.plist

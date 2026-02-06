@@ -61,7 +61,7 @@ async function main() {
     console.error('')
     console.error('Options:')
     console.error('  --limit N        Number of results to return (default: 5)')
-    console.error('  --db-path PATH   Path to LanceDB directory')
+    console.error('  --db-path PATH   Path to SQLite database file')
     console.error('')
     console.error(`Default database path: ${getDefaultDbPath()}`)
     process.exit(1)

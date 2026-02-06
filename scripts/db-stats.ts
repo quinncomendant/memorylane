@@ -7,7 +7,6 @@
  *   npm run db:stats -- --db-path /custom/path
  */
 
-import * as path from 'path'
 import * as fs from 'fs'
 import { StorageService } from '../src/main/processor/storage'
 import { getDefaultDbPath } from '../src/main/paths'
@@ -45,25 +44,9 @@ function formatBytes(bytes: number): string {
   return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i]
 }
 
-function getDirectorySize(dirPath: string): number {
-  let totalSize = 0
-
-  if (!fs.existsSync(dirPath)) return 0
-
-  const items = fs.readdirSync(dirPath)
-
-  for (const item of items) {
-    const itemPath = path.join(dirPath, item)
-    const stats = fs.statSync(itemPath)
-
-    if (stats.isDirectory()) {
-      totalSize += getDirectorySize(itemPath)
-    } else {
-      totalSize += stats.size
-    }
-  }
-
-  return totalSize
+function getFileSize(filePath: string): number {
+  if (!fs.existsSync(filePath)) return 0
+  return fs.statSync(filePath).size
 }
 
 function formatDuration(ms: number): string {
@@ -98,7 +81,7 @@ async function main() {
   }
 
   // Get disk size
-  const diskSize = getDirectorySize(dbPath)
+  const diskSize = getFileSize(dbPath)
   console.log(`Database size: ${formatBytes(diskSize)}`)
   console.log('')
 

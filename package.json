@@ -7,6 +7,8 @@
   "private": true,
   "scripts": {
     "dev": "electron-vite dev",
+    "rebuild:electron": "electron-builder install-app-deps",
+    "rebuild:node": "npm rebuild better-sqlite3",
     "build": "electron-vite build",
     "preview": "electron-vite preview",
     "package": "npm run build && electron-builder --dir",
@@ -17,7 +19,7 @@
     "lint": "eslint --ext .ts,.tsx .",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "test": "vitest",
+    "test": "npm run rebuild:node && vitest",
     "postinstall": "electron-builder install-app-deps",
     "prepare": "husky",
     "db:search": "tsx scripts/db-search.ts",

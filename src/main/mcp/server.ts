@@ -51,7 +51,7 @@ export class MemoryLaneMCPServer {
       'search_context',
       {
         description:
-          "Search your personal context vault for relevant information based on what you've been doing on your computer. Uses semantic search to find contextually relevant results. Supports filtering by time range and app name.",
+          'Search your personal context vault by meaning. Use for specific questions like "when did I work on auth?" Returns compact summaries (id, timestamp, app, summary). Use get_event_details with returned IDs to fetch full OCR text when needed.',
         inputSchema: {
           query: z.string().describe("The search query - describe what context you're looking for"),
           limit: z.number().optional().describe('Maximum number of results to return (default: 5)'),
@@ -76,6 +76,22 @@ export class MemoryLaneMCPServer {
         },
       },
       this.handleSearchContext.bind(this),
+    )
+
+    this.server.registerTool(
+      'get_event_details',
+      {
+        description:
+          'Fetch full details (including raw OCR text) for specific events by ID. Use after search_context or browse_timeline to drill into individual entries.',
+        inputSchema: {
+          ids: z
+            .array(z.string())
+            .min(1)
+            .max(20)
+            .describe('Event IDs to fetch (from search_context or browse_timeline results)'),
+        },
+      },
+      this.handleGetEventDetails.bind(this),
     )
   }
 
@@ -184,6 +200,68 @@ export class MemoryLaneMCPServer {
   }
 
   /**
+   * Handler for the get_event_details tool.
+   */
+  private async handleGetEventDetails({ ids }: { ids: string[] }) {
+    if (!this.eventProcessor) {
+      return {
+        content: [
+          {
+            type: 'text' as const,
+            text: 'Error: EventProcessor is not initialized. The server cannot query the database.',
+          },
+        ],
+        isError: true,
+      }
+    }
+
+    try {
+      const storage = this.eventProcessor.getStorageService()
+      const events = await storage.getEventsByIds(ids)
+
+      if (events.length === 0) {
+        return {
+          content: [
+            {
+              type: 'text' as const,
+              text: 'No events found for the given IDs.',
+            },
+          ],
+        }
+      }
+
+      const formatted = events
+        .map((e) => {
+          const timeStr = new Date(e.timestamp).toLocaleString()
+          const appInfo = e.appName ? ` [${e.appName}]` : ''
+          const summaryLine = e.summary ? `\nSummary: ${e.summary}` : ''
+          return `ID: ${e.id}\n[${timeStr}]${appInfo}${summaryLine}\nOCR: ${e.text}`
+        })
+        .join('\n\n---\n\n')
+
+      return {
+        content: [
+          {
+            type: 'text' as const,
+            text: `${events.length} event(s):\n\n${formatted}`,
+          },
+        ],
+      }
+    } catch (error) {
+      log.error('Error fetching event details:', error)
+      return {
+        content: [
+          {
+            type: 'text' as const,
+            text: `Error fetching event details: ${error instanceof Error ? error.message : String(error)}`,
+          },
+        ],
+        isError: true,
+      }
+    }
+  }
+
+  /**
    * Merges vector and FTS results, prioritizing vector results.
    */
   private deduplicateResults(
@@ -207,27 +285,19 @@ export class MemoryLaneMCPServer {
   }
 
   /**
-   * Formats results into a human-readable string for the LLM.
+   * Formats search results as compact summaries (no OCR text).
+   * The AI should use get_event_details to fetch full text for specific IDs.
    */
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   private formatResultsForLLM(results: any[]): string {
     return results
       .map((r) => {
-        const date = new Date(r.timestamp)
-        const timeStr = date.toLocaleString()
-
-        // Show app name if available
+        const timeStr = new Date(r.timestamp).toLocaleString()
         const appInfo = r.appName ? ` [${r.appName}]` : ''
-
-        // Show score if available (vector search returns _distance)
-        const scoreInfo = r._distance !== undefined ? ` (Distance: ${r._distance.toFixed(4)})` : ''
-
-        // Show summary if available
-        const summaryLine = r.summary ? `\nSummary: ${r.summary}` : ''
-
-        return `[${timeStr}]${appInfo}${scoreInfo}${summaryLine}\nOCR: ${r.text}`
+        const summary = r.summary || '(no summary)'
+        return `- ${r.id} | ${timeStr}${appInfo} | ${summary}`
       })
-      .join('\n\n---\n\n')
+      .join('\n')
   }
 
   /**

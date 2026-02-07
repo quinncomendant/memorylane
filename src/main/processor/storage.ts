@@ -385,6 +385,27 @@ export class StorageService {
   }
 
   /**
+   * Retrieves multiple events by their IDs.
+   */
+  public async getEventsByIds(ids: readonly string[]): Promise<StoredEvent[]> {
+    if (!this.db) {
+      await this.init()
+    }
+    if (!this.db || ids.length === 0) return []
+
+    const placeholders = ids.map(() => '?').join(', ')
+    const rows = this.db
+      .prepare(
+        `SELECT id, timestamp, text, summary, appName, vector
+         FROM context_events
+         WHERE id IN (${placeholders})`,
+      )
+      .all(...ids) as Record<string, unknown>[]
+
+    return rows.map((row) => this.rowToStoredEvent(row))
+  }
+
+  /**
    * Returns the total number of events in the database.
    */
   public async countRows(): Promise<number> {

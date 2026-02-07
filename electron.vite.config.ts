@@ -38,7 +38,6 @@ export default defineConfig({
       sourcemap: true,
       rollupOptions: {
         input: {
-          settings: resolve(__dirname, 'src/renderer/settings.html'),
           'main-window': resolve(__dirname, 'src/renderer/main-window.html'),
         },
       },

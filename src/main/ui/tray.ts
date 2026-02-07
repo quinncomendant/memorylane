@@ -6,12 +6,11 @@ import { app, Tray, Menu, nativeImage } from 'electron'
 import path from 'node:path'
 import log from '../logger'
 import { formatBytes, formatNumber } from '../utils/formatters'
-import { openSettingsWindow } from '../settings/settings-window'
 import { registerWithClaudeDesktop } from '../integrations/claude-desktop'
 import { registerWithCursor } from '../integrations/cursor'
 import { Screenshot, InteractionContext } from '../../shared/types'
 import type { EventProcessor } from '../processor/index'
-import { sendStatusToRenderer } from './main-window'
+import { sendStatusToRenderer, openMainWindow } from './main-window'
 
 interface TrayDependencies {
   recorder: {
@@ -145,9 +144,9 @@ export const updateTrayMenu = async (): Promise<void> => {
       submenu: usageStatsSubmenu,
     },
     {
-      label: 'Settings...',
+      label: 'Open MemoryLane',
       click: () => {
-        openSettingsWindow()
+        openMainWindow()
       },
     },
     { type: 'separator' },

@@ -5,12 +5,16 @@
  * Singleton window that hides on close instead of destroying.
  */
 
-import { BrowserWindow, ipcMain } from 'electron'
+import { BrowserWindow, ipcMain, IpcMainInvokeEvent } from 'electron'
 import path from 'node:path'
 import log from '../logger'
-import { openSettingsWindow } from '../settings/settings-window'
 import { updateTrayMenu } from './tray'
+import { registerWithClaudeDesktop } from '../integrations/claude-desktop'
+import { registerWithCursor } from '../integrations/cursor'
 import type { EventProcessor } from '../processor/index'
+import type { ApiKeyManager } from '../settings/api-key-manager'
+import type { SemanticClassifierService } from '../processor/semantic-classifier'
+import type { MainWindowStats } from '../../shared/types'
 
 interface MainWindowDependencies {
   recorder: {
@@ -22,6 +26,8 @@ interface MainWindowDependencies {
     stopInteractionMonitoring: () => void
   }
   processor: EventProcessor
+  apiKeyManager: ApiKeyManager
+  classifierService: SemanticClassifierService
 }
 
 interface MainWindowStatus {
@@ -59,7 +65,7 @@ export function openMainWindow(): void {
 
   mainWindow = new BrowserWindow({
     width: 600,
-    height: 320,
+    height: 520,
     resizable: false,
     minimizable: true,
     maximizable: false,
@@ -96,6 +102,49 @@ export function getMainWindow(): BrowserWindow | null {
 }
 
 /**
+ * Build stats for the main window
+ */
+async function buildStats(): Promise<MainWindowStats> {
+  if (!deps) {
+    return {
+      screenshotCount: 0,
+      dbSize: 0,
+      dateRange: { oldest: null, newest: null },
+      apiUsage: null,
+    }
+  }
+
+  const storage = deps.processor.getStorageService()
+  const classifier = deps.processor.getClassifierService()
+
+  let screenshotCount = 0
+  let dbSize = 0
+  const dateRange: { oldest: number | null; newest: number | null } = { oldest: null, newest: null }
+
+  try {
+    screenshotCount = await storage.countRows()
+    dbSize = storage.getDbSize()
+    const range = await storage.getDateRange()
+    dateRange.oldest = range.oldest
+    dateRange.newest = range.newest
+  } catch (error) {
+    log.error('[MainWindow] Error fetching storage stats:', error)
+  }
+
+  let apiUsage: { requestCount: number; totalCost: number } | null = null
+  if (classifier) {
+    const usageTracker = classifier.getUsageTracker()
+    const stats = usageTracker.getStats()
+    apiUsage = {
+      requestCount: stats.requestCount,
+      totalCost: stats.totalCost,
+    }
+  }
+
+  return { screenshotCount, dbSize, dateRange, apiUsage }
+}
+
+/**
  * Initialize IPC handlers for the main window
  */
 export function initMainWindowIPC(dependencies: MainWindowDependencies): void {
@@ -124,7 +173,46 @@ export function initMainWindowIPC(dependencies: MainWindowDependencies): void {
     return buildStatus()
   })
 
-  ipcMain.on('main-window:openSettings', () => {
-    openSettingsWindow()
+  // API key management
+  ipcMain.handle('main-window:getKeyStatus', () => {
+    if (!deps) {
+      return { hasKey: false, source: 'none', maskedKey: null }
+    }
+    return deps.apiKeyManager.getKeyStatus()
   })
+
+  ipcMain.handle('main-window:saveApiKey', (_event: IpcMainInvokeEvent, key: string) => {
+    if (!deps) {
+      return { success: false, error: 'Dependencies not initialized' }
+    }
+    try {
+      deps.apiKeyManager.saveApiKey(key)
+      deps.classifierService.updateApiKey(key)
+      return { success: true }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unknown error'
+      return { success: false, error: message }
+    }
+  })
+
+  ipcMain.handle('main-window:deleteApiKey', () => {
+    if (!deps) {
+      return { success: false, error: 'Dependencies not initialized' }
+    }
+    try {
+      deps.apiKeyManager.deleteApiKey()
+      deps.classifierService.updateApiKey(null)
+      return { success: true }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unknown error'
+      return { success: false, error: message }
+    }
+  })
+
+  // Integrations
+  ipcMain.handle('main-window:addToClaude', () => registerWithClaudeDesktop())
+  ipcMain.handle('main-window:addToCursor', () => registerWithCursor())
+
+  // Stats
+  ipcMain.handle('main-window:getStats', () => buildStats())
 }

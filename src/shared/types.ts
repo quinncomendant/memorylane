@@ -115,9 +115,23 @@ export interface MainWindowStatus {
   capturing: boolean
 }
 
+export interface MainWindowStats {
+  screenshotCount: number
+  dbSize: number
+  dateRange: { oldest: number | null; newest: number | null }
+  apiUsage: { requestCount: number; totalCost: number } | null
+}
+
 export interface MainWindowAPI {
   getStatus: () => Promise<MainWindowStatus>
   toggleCapture: () => Promise<MainWindowStatus>
-  openSettings: () => void
   onStatusChanged: (callback: (status: MainWindowStatus) => void) => void
+  // Settings methods (merged from settingsAPI)
+  getKeyStatus: () => Promise<KeyStatus>
+  saveApiKey: (key: string) => Promise<SaveResult>
+  deleteApiKey: () => Promise<SaveResult>
+  addToClaude: () => Promise<void>
+  addToCursor: () => Promise<void>
+  // Stats
+  getStats: () => Promise<MainWindowStats>
 }

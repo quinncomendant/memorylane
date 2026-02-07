@@ -36,7 +36,6 @@ import { StorageService } from './processor/storage'
 import { SemanticClassifierService } from './processor/semantic-classifier'
 import { ApiKeyManager } from './settings/api-key-manager'
 import { CaptureSettingsManager } from './settings/capture-settings-manager'
-import { initSettingsIPC, initCaptureSettingsIPC } from './settings/settings-window'
 import { config as loadEnv } from 'dotenv'
 
 try {
@@ -105,6 +104,7 @@ if (isMCPMode) {
   let processor: EventProcessor | null = null
   let apiKeyManager: ApiKeyManager | null = null
   let captureSettingsManager: CaptureSettingsManager | null = null
+  let classifierService: SemanticClassifierService | null = null
 
   const initRecorderMode = async () => {
     // Dynamic imports for recorder-specific modules
@@ -125,12 +125,8 @@ if (isMCPMode) {
     // Initialize Processor Services
     const embeddingService = new EmbeddingService()
     const storageService = new StorageService(StorageService.getDefaultDbPath())
-    const classifierService = new SemanticClassifierService(apiKeyManager.getApiKey() || undefined)
+    classifierService = new SemanticClassifierService(apiKeyManager.getApiKey() || undefined)
     processor = new EventProcessor(embeddingService, storageService, classifierService)
-
-    // Initialize settings IPC handlers (pass classifier so it can be updated when key changes)
-    initSettingsIPC(apiKeyManager, classifierService)
-    initCaptureSettingsIPC(captureSettingsManager)
   }
 
   // This method will be called when Electron has finished initialization
@@ -167,6 +163,8 @@ if (isMCPMode) {
       recorder,
       interactionMonitor,
       processor: processor!,
+      apiKeyManager: apiKeyManager!,
+      classifierService: classifierService!,
     })
     openMainWindow()
 

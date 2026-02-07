@@ -69,10 +69,11 @@ Add a clear description pattern to each tool so the AI knows the intended workfl
 - `src/main/processor/storage.ts` -- add `getEventsByIds()` method
 - `src/shared/types.ts` -- no changes expected (existing types cover the needs)
 
-## Order of implementation
+## Implementation status
 
-1. `get_event_details` tool + `getEventsByIds` in storage (simplest, unblocks the two-phase pattern)
-2. `browse_timeline` tool (wraps existing `getEventsByTimeRange`, add sampling)
-3. Similarity dedup in `search_context` (self-contained change in server.ts)
-4. Make `query` optional (small schema change + fallback logic)
-5. Update all tool descriptions
+- [x] 1. `get_event_details` tool + `getEventsByIds` in storage
+- [x] 2. `browse_timeline` tool (wraps `getEventsByTimeRange`, with uniform/recent_first sampling)
+- [ ] 3. Similarity dedup in `search_context` (deferred -- adds complexity, revisit when duplicates become a real problem)
+- [x] 4. Make `query` optional (falls back to chronological time-range listing)
+- [x] 5. Updated all tool descriptions
+- [x] `search_context` returns compact summaries (no raw OCR) -- part of step 3 done early

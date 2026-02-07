@@ -51,9 +51,14 @@ export class MemoryLaneMCPServer {
       'search_context',
       {
         description:
-          'Search your personal context vault by meaning. Use for specific questions like "when did I work on auth?" Returns compact summaries (id, timestamp, app, summary). Use get_event_details with returned IDs to fetch full OCR text when needed.',
+          'Search your personal context vault by meaning. Use for specific questions like "when did I work on auth?" Returns compact summaries (id, timestamp, app, summary). When query is omitted but time filters are set, returns events in that range ordered by time (like browse_timeline). Use get_event_details to fetch full OCR text for specific entries.',
         inputSchema: {
-          query: z.string().describe("The search query - describe what context you're looking for"),
+          query: z
+            .string()
+            .optional()
+            .describe(
+              'Semantic search query. When provided, results are ranked by relevance. When omitted, results are returned chronologically (requires at least startTime or endTime).',
+            ),
           limit: z.number().optional().describe('Maximum number of results to return (default: 5)'),
           startTime: z
             .string()
@@ -82,7 +87,7 @@ export class MemoryLaneMCPServer {
       'browse_timeline',
       {
         description:
-          'Browse what happened during a time period. Start here for broad questions like "what did I do today?" Returns lightweight summaries (id, timestamp, app, summary) with no OCR text. Use get_event_details to drill into specific entries.',
+          'Browse what happened during a time period. Best for broad questions like "what did I do today?" or "show me this morning\'s activity." Returns lightweight summaries (id, timestamp, app, summary) -- no OCR text. Supports uniform sampling to scan long ranges efficiently. Use get_event_details to drill into specific entries.',
         inputSchema: {
           startTime: z
             .string()
@@ -119,7 +124,7 @@ export class MemoryLaneMCPServer {
       'get_event_details',
       {
         description:
-          'Fetch full details (including raw OCR text) for specific events by ID. Use after search_context or browse_timeline to drill into individual entries.',
+          'Fetch full details for specific events by ID, including the raw OCR screen text. This is the only tool that returns OCR content. Use after search_context or browse_timeline to get the full picture for entries of interest.',
         inputSchema: {
           ids: z
             .array(z.string())
@@ -142,7 +147,7 @@ export class MemoryLaneMCPServer {
     endTime: endTimeStr,
     appName,
   }: {
-    query: string
+    query?: string | undefined
     limit?: number | undefined
     startTime?: string | undefined
     endTime?: string | undefined
@@ -167,7 +172,6 @@ export class MemoryLaneMCPServer {
       const startTime = startTimeStr ? parseTimeString(startTimeStr) : undefined
       const endTime = endTimeStr ? parseTimeString(endTimeStr) : undefined
 
-      // Validate parsed times
       if (startTimeStr && startTime === null) {
         return {
           content: [
@@ -192,6 +196,53 @@ export class MemoryLaneMCPServer {
         }
       }
 
+      // No query: fall back to chronological time-range listing
+      if (!query) {
+        if (startTime === undefined && endTime === undefined) {
+          return {
+            content: [
+              {
+                type: 'text' as const,
+                text: 'Error: Either query or at least one of startTime/endTime is required.',
+              },
+            ],
+            isError: true,
+          }
+        }
+
+        const storage = this.eventProcessor.getStorageService()
+        const events = await storage.getEventsByTimeRange(startTime ?? null, endTime ?? null, {
+          appName,
+        })
+
+        const sampled = this.sampleEvents(events, effectiveLimit, 'recent_first')
+
+        if (sampled.length === 0) {
+          return {
+            content: [{ type: 'text' as const, text: 'No events found in the given time range.' }],
+          }
+        }
+
+        const formatted = sampled
+          .map((e) => {
+            const timeStr = new Date(e.timestamp as number).toLocaleString()
+            const appInfo = e.appName ? ` [${e.appName}]` : ''
+            const summary = e.summary || '(no summary)'
+            return `- ${e.id} | ${timeStr}${appInfo} | ${summary}`
+          })
+          .join('\n')
+
+        const header =
+          sampled.length < events.length
+            ? `Showing ${sampled.length} of ${events.length} events:`
+            : `${events.length} event(s):`
+
+        return {
+          content: [{ type: 'text' as const, text: `${header}\n\n${formatted}` }],
+        }
+      }
+
+      // Semantic search path
       const results = await this.eventProcessor.search(query, {
         limit: effectiveLimit,
         startTime: startTime ?? undefined,

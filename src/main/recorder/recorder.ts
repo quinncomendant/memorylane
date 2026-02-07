@@ -10,15 +10,42 @@ import log from '../logger'
 
 // Configuration
 const SCREENSHOTS_DIR = path.join(app.getPath('userData'), 'screenshots')
+const SCREENSHOT_MAX_AGE_MS = 60_000
+const CLEANUP_INTERVAL_MS = 30_000
 
 // State
 const screenshotCallbacks: OnScreenshotCallback[] = []
 let isCapturing = false
+let cleanupTimer: ReturnType<typeof setInterval> | null = null
 
 // Ensure screenshots directory exists
 function ensureScreenshotsDir(): void {
   if (!fs.existsSync(SCREENSHOTS_DIR)) {
     fs.mkdirSync(SCREENSHOTS_DIR, { recursive: true })
+  }
+}
+
+/**
+ * Delete screenshot files older than SCREENSHOT_MAX_AGE_MS from the screenshots directory.
+ */
+function cleanupOldScreenshots(): void {
+  try {
+    const now = Date.now()
+    const files = fs.readdirSync(SCREENSHOTS_DIR)
+
+    for (const file of files) {
+      if (!file.endsWith('.png')) continue
+
+      const filepath = path.join(SCREENSHOTS_DIR, file)
+      const stat = fs.statSync(filepath)
+
+      if (now - stat.mtimeMs > SCREENSHOT_MAX_AGE_MS) {
+        fs.unlinkSync(filepath)
+        log.info(`[Cleanup] Deleted old screenshot: ${file}`)
+      }
+    }
+  } catch (error) {
+    log.error('[Cleanup] Error cleaning up old screenshots:', error)
   }
 }
 
@@ -100,6 +127,9 @@ export function startCapture(): void {
   log.info('[Capture] Starting screenshot capture with event-driven baseline detection')
   isCapturing = true
 
+  // Start periodic cleanup of old screenshot files
+  cleanupTimer = setInterval(cleanupOldScreenshots, CLEANUP_INTERVAL_MS)
+
   // Start visual detection (no interval, just enables the module)
   visualDetector.startVisualDetection()
 
@@ -157,6 +187,12 @@ export function stopCapture(): void {
 
   log.info('[Capture] Stopping screenshot capture')
   isCapturing = false
+
+  // Stop periodic cleanup
+  if (cleanupTimer) {
+    clearInterval(cleanupTimer)
+    cleanupTimer = null
+  }
 
   // Stop visual detection
   visualDetector.stopVisualDetection()

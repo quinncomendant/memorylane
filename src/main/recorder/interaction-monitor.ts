@@ -1,6 +1,6 @@
 import { uIOhook, UiohookMouseEvent, UiohookWheelEvent } from 'uiohook-napi'
 import activeWin from 'active-win'
-import { DEFAULT_INTERACTION_MONITOR_CONFIG } from '@constants'
+import { DEFAULT_INTERACTION_MONITOR_CONFIG, CAPTURE_THROTTLE_CONFIG } from '@constants'
 import { InteractionContext, CaptureSettings } from '../../shared/types'
 import { CaptureSettingsManager } from '../settings/capture-settings-manager'
 import log from '../logger'
@@ -52,6 +52,11 @@ function getConfig() {
   }
   return DEFAULT_INTERACTION_MONITOR_CONFIG
 }
+
+// Click debounce state
+let clickDebounceTimeoutId: NodeJS.Timeout | null = null
+let pendingClickEvent: UiohookMouseEvent | null = null
+
 let typingSessionTimeoutId: NodeJS.Timeout | null = null
 let isTyping = false
 let typingSessionKeyCount = 0
@@ -73,8 +78,8 @@ type OnInteractionCallback = (context: InteractionContext) => void
 const interactionCallbacks: OnInteractionCallback[] = []
 
 /**
- * Handle mouse click events
- * Not debounced because we would loose chronological order of events
+ * Handle mouse click events.
+ * Debounced so rapid clicks fire a single callback for the last click.
  */
 function handleMouseClick(event: UiohookMouseEvent): void {
   const config = getConfig()
@@ -82,24 +87,34 @@ function handleMouseClick(event: UiohookMouseEvent): void {
     return
   }
 
-  // Schedule notification after delay (to let UI update)
-  const context: InteractionContext = {
-    type: 'click',
-    timestamp: Date.now(),
-    clickPosition: {
-      x: event.x,
-      y: event.y,
-    },
+  pendingClickEvent = event
+
+  if (clickDebounceTimeoutId) {
+    clearTimeout(clickDebounceTimeoutId)
   }
 
-  // Notify all callbacks
-  interactionCallbacks.forEach((callback) => {
-    try {
-      callback(context)
-    } catch (error) {
-      log.error('Error in interaction callback:', error)
+  clickDebounceTimeoutId = setTimeout(() => {
+    if (pendingClickEvent === null) return
+
+    const context: InteractionContext = {
+      type: 'click',
+      timestamp: Date.now(),
+      clickPosition: {
+        x: pendingClickEvent.x,
+        y: pendingClickEvent.y,
+      },
     }
-  })
+
+    pendingClickEvent = null
+
+    interactionCallbacks.forEach((callback) => {
+      try {
+        callback(context)
+      } catch (error) {
+        log.error('Error in interaction callback:', error)
+      }
+    })
+  }, CAPTURE_THROTTLE_CONFIG.CLICK_DEBOUNCE_MS)
 }
 
 /**
@@ -360,6 +375,13 @@ export function stopInteractionMonitoring(): void {
     scrollSessionAmount = 0
     scrollSessionStartTime = 0
     previousWindow = null
+    pendingClickEvent = null
+
+    // Clear any pending click debounce timeout
+    if (clickDebounceTimeoutId) {
+      clearTimeout(clickDebounceTimeoutId)
+      clickDebounceTimeoutId = null
+    }
 
     // Clear any pending typing session timeout
     if (typingSessionTimeoutId) {

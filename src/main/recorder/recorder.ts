@@ -1,9 +1,10 @@
-import { app, desktopCapturer } from 'electron'
+import { app, desktopCapturer, NativeImage } from 'electron'
 // eslint-disable-next-line import/no-unresolved
 import { v4 as uuidv4 } from 'uuid'
 import * as fs from 'fs'
 import * as path from 'path'
 import { Screenshot, OnScreenshotCallback, CaptureReason } from '../../shared/types'
+import { CAPTURE_THROTTLE_CONFIG } from '@constants'
 import * as visualDetector from './visual-detector'
 import * as interactionMonitor from './interaction-monitor'
 import log from '../logger'
@@ -17,6 +18,7 @@ const CLEANUP_INTERVAL_MS = 30_000
 const screenshotCallbacks: OnScreenshotCallback[] = []
 let isCapturing = false
 let cleanupTimer: ReturnType<typeof setInterval> | null = null
+let lastCaptureCheckTime = 0
 
 // Ensure screenshots directory exists
 function ensureScreenshotsDir(): void {
@@ -49,43 +51,41 @@ function cleanupOldScreenshots(): void {
   }
 }
 
-/**
- * Capture a screenshot from the primary display
- */
-export async function captureNow(reason?: CaptureReason): Promise<Screenshot> {
-  ensureScreenshotsDir()
+interface CaptureResult {
+  screenshot: Screenshot
+  thumbnail: NativeImage
+}
 
-  // Default reason if not provided
-  const captureReason: CaptureReason = reason || {
-    type: 'manual',
-  }
+/**
+ * Capture a screenshot from the primary display.
+ * Returns both the saved Screenshot metadata and the raw NativeImage thumbnail
+ * so callers can reuse it (e.g. to update the visual baseline without an extra capture).
+ */
+async function captureInternal(reason: CaptureReason): Promise<CaptureResult> {
+  ensureScreenshotsDir()
 
   const sources = await desktopCapturer.getSources({
     types: ['screen'],
     thumbnailSize: {
-      width: 1920 * 2, // Support high DPI displays
+      width: 1920 * 2,
       height: 1080 * 2,
     },
   })
 
-  if (sources.length === 0) {
+  const primarySource = sources[0]
+  if (primarySource === undefined) {
     throw new Error('No screen sources available for capture')
   }
 
-  // Use the primary display (first source)
-  const primarySource = sources[0]
   const thumbnail = primarySource.thumbnail
 
-  // Generate screenshot metadata
   const id = uuidv4()
   const timestamp = Date.now()
   const filename = `${timestamp}_${id}.png`
   const filepath = path.join(SCREENSHOTS_DIR, filename)
 
-  // Get actual thumbnail dimensions
   const size = thumbnail.getSize()
 
-  // Save the screenshot
   const pngBuffer = thumbnail.toPNG()
   fs.writeFileSync(filepath, pngBuffer)
 
@@ -98,12 +98,11 @@ export async function captureNow(reason?: CaptureReason): Promise<Screenshot> {
       width: size.width,
       height: size.height,
     },
-    trigger: captureReason,
+    trigger: reason,
   }
 
-  log.info(`[Capture] Screenshot saved: ${filename} (reason: ${captureReason.type})`)
+  log.info(`[Capture] Screenshot saved: ${filename} (reason: ${reason.type})`)
 
-  // Notify all registered callbacks
   screenshotCallbacks.forEach((callback) => {
     try {
       callback(screenshot)
@@ -112,6 +111,15 @@ export async function captureNow(reason?: CaptureReason): Promise<Screenshot> {
     }
   })
 
+  return { screenshot, thumbnail }
+}
+
+/**
+ * Capture a screenshot from the primary display (public API).
+ */
+export async function captureNow(reason?: CaptureReason): Promise<Screenshot> {
+  const captureReason: CaptureReason = reason || { type: 'manual' }
+  const { screenshot } = await captureInternal(captureReason)
   return screenshot
 }
 
@@ -126,32 +134,34 @@ export function startCapture(): void {
 
   log.info('[Capture] Starting screenshot capture with event-driven baseline detection')
   isCapturing = true
+  lastCaptureCheckTime = 0
 
-  // Start periodic cleanup of old screenshot files
   cleanupTimer = setInterval(cleanupOldScreenshots, CLEANUP_INTERVAL_MS)
 
-  // Start visual detection (no interval, just enables the module)
   visualDetector.startVisualDetection()
 
-  // Start interaction monitoring
   interactionMonitor.startInteractionMonitoring()
 
-  // Capture initial baseline screenshot and set it as baseline
-  captureNow({ type: 'manual' })
-    .then(async () => {
+  captureInternal({ type: 'manual' })
+    .then(async ({ thumbnail }) => {
       log.info('[Capture] Initial baseline screenshot captured')
-      await visualDetector.updateBaseline()
+      await visualDetector.updateBaseline(thumbnail)
       log.info('[Capture] Baseline set')
     })
     .catch((error) => {
       log.error('[Capture] Failed to capture initial baseline:', error)
     })
 
-  // Register interaction monitor callback
   interactionMonitor.onInteraction(async (context) => {
+    const now = Date.now()
+    if (now - lastCaptureCheckTime < CAPTURE_THROTTLE_CONFIG.MIN_CAPTURE_CHECK_INTERVAL_MS) {
+      log.info(`[Capture] Throttled interaction (${now - lastCaptureCheckTime}ms since last check)`)
+      return
+    }
+    lastCaptureCheckTime = now
+
     log.info(`[Capture] Interaction detected: ${context.type}`)
 
-    // Check visual change against baseline
     const result = await visualDetector.checkAgainstBaseline()
 
     if (result.changed) {
@@ -159,14 +169,12 @@ export function startCapture(): void {
         `[Capture] Visual change detected (${result.difference.toFixed(1)}%) - capturing new screenshot`,
       )
 
-      // Capture new screenshot
-      await captureNow({
+      const { thumbnail } = await captureInternal({
         type: 'baseline_change',
         confidence: result.difference,
       })
 
-      // Update baseline to new screenshot
-      await visualDetector.updateBaseline()
+      await visualDetector.updateBaseline(thumbnail)
       log.info('[Capture] Baseline updated to new screenshot')
     } else {
       log.info(
@@ -188,16 +196,13 @@ export function stopCapture(): void {
   log.info('[Capture] Stopping screenshot capture')
   isCapturing = false
 
-  // Stop periodic cleanup
   if (cleanupTimer) {
     clearInterval(cleanupTimer)
     cleanupTimer = null
   }
 
-  // Stop visual detection
   visualDetector.stopVisualDetection()
 
-  // Stop interaction monitoring
   interactionMonitor.stopInteractionMonitoring()
 }
 

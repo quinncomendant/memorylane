@@ -20,6 +20,12 @@ export const DEFAULT_INTERACTION_MONITOR_CONFIG = {
   APP_CHANGE_POLL_MS: 500, // Poll active window every 500ms
 }
 
+// Capture Throttling Configuration
+export const CAPTURE_THROTTLE_CONFIG = {
+  MIN_CAPTURE_CHECK_INTERVAL_MS: 2000, // Minimum time between capture checks (ms)
+  CLICK_DEBOUNCE_MS: 300, // Debounce rapid clicks (ms)
+}
+
 // Context Capture Configuration
 export const CONTEXT_CAPTURE_CONFIG = {
   ENABLED: false, // Disabled by default (requires permissions)

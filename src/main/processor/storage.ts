@@ -340,11 +340,16 @@ export class StorageService {
 
   /**
    * Returns events within a time range, sorted by timestamp ascending.
+   *
+   * NB: loads all matching rows into memory. This is fine at current scale
+   * (lightweight rows, no OCR/vectors, realistic capture rates produce <1k/day).
+   * If the database grows to 100k+ rows, consider adding a SQL LIMIT cap with
+   * a separate COUNT(*) query so callers can still report total counts.
    */
   public async getEventsByTimeRange(
     startTime: number | null = null,
     endTime: number | null = null,
-    options?: { includeText?: boolean },
+    options?: { includeText?: boolean; appName?: string | undefined },
   ): Promise<Omit<StoredEvent, 'vector'>[]> {
     if (!this.db) {
       await this.init()
@@ -362,6 +367,10 @@ export class StorageService {
     if (endTime !== null) {
       conditions.push('timestamp <= ?')
       params.push(endTime)
+    }
+    if (options?.appName !== undefined) {
+      conditions.push('appName = ?')
+      params.push(options.appName)
     }
 
     const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : ''

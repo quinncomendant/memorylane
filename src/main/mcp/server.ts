@@ -79,6 +79,43 @@ export class MemoryLaneMCPServer {
     )
 
     this.server.registerTool(
+      'browse_timeline',
+      {
+        description:
+          'Browse what happened during a time period. Start here for broad questions like "what did I do today?" Returns lightweight summaries (id, timestamp, app, summary) with no OCR text. Use get_event_details to drill into specific entries.',
+        inputSchema: {
+          startTime: z
+            .string()
+            .describe(
+              'Start of time range. Accepts ISO 8601 (e.g., "2024-01-15T10:00:00") or relative strings (e.g., "1 hour ago", "yesterday", "2 days ago")',
+            ),
+          endTime: z
+            .string()
+            .describe(
+              'End of time range. Accepts ISO 8601 (e.g., "2024-01-15T18:00:00") or relative strings (e.g., "now", "1 hour ago")',
+            ),
+          appName: z
+            .string()
+            .optional()
+            .describe(
+              'Filter: only include results from this application (e.g., "VS Code", "Chrome", "Slack")',
+            ),
+          limit: z
+            .number()
+            .optional()
+            .describe('Maximum number of results to return (default: 20)'),
+          sampling: z
+            .enum(['uniform', 'recent_first'])
+            .optional()
+            .describe(
+              'How to sample when there are more events than the limit. "uniform" picks evenly spaced entries across the range (default). "recent_first" returns the newest entries.',
+            ),
+        },
+      },
+      this.handleBrowseTimeline.bind(this),
+    )
+
+    this.server.registerTool(
       'get_event_details',
       {
         description:
@@ -197,6 +234,138 @@ export class MemoryLaneMCPServer {
         isError: true,
       }
     }
+  }
+
+  /**
+   * Handler for the browse_timeline tool.
+   */
+  private async handleBrowseTimeline({
+    startTime: startTimeStr,
+    endTime: endTimeStr,
+    appName,
+    limit,
+    sampling,
+  }: {
+    startTime: string
+    endTime: string
+    appName?: string | undefined
+    limit?: number | undefined
+    sampling?: 'uniform' | 'recent_first' | undefined
+  }) {
+    if (!this.eventProcessor) {
+      return {
+        content: [
+          {
+            type: 'text' as const,
+            text: 'Error: EventProcessor is not initialized. The server cannot query the database.',
+          },
+        ],
+        isError: true,
+      }
+    }
+
+    try {
+      const startTime = parseTimeString(startTimeStr)
+      const endTime = parseTimeString(endTimeStr)
+
+      if (startTime === null) {
+        return {
+          content: [
+            {
+              type: 'text' as const,
+              text: `Error: Could not parse startTime "${startTimeStr}". Use ISO 8601 format or relative strings like "1 hour ago", "yesterday", etc.`,
+            },
+          ],
+          isError: true,
+        }
+      }
+
+      if (endTime === null) {
+        return {
+          content: [
+            {
+              type: 'text' as const,
+              text: `Error: Could not parse endTime "${endTimeStr}". Use ISO 8601 format or relative strings like "now", "1 hour ago", etc.`,
+            },
+          ],
+          isError: true,
+        }
+      }
+
+      const storage = this.eventProcessor.getStorageService()
+      const allEvents = await storage.getEventsByTimeRange(startTime, endTime, { appName })
+
+      if (allEvents.length === 0) {
+        return {
+          content: [
+            {
+              type: 'text' as const,
+              text: 'No events found in the given time range.',
+            },
+          ],
+        }
+      }
+
+      const effectiveLimit = limit ?? 20
+      const effectiveSampling = sampling ?? 'uniform'
+      const sampled = this.sampleEvents(allEvents, effectiveLimit, effectiveSampling)
+
+      const formatted = sampled
+        .map((e) => {
+          const timeStr = new Date(e.timestamp as number).toLocaleString()
+          const appInfo = e.appName ? ` [${e.appName}]` : ''
+          const summary = e.summary || '(no summary)'
+          return `- ${e.id} | ${timeStr}${appInfo} | ${summary}`
+        })
+        .join('\n')
+
+      const header =
+        sampled.length < allEvents.length
+          ? `Showing ${sampled.length} of ${allEvents.length} events (${effectiveSampling} sampling):`
+          : `${allEvents.length} event(s):`
+
+      return {
+        content: [
+          {
+            type: 'text' as const,
+            text: `${header}\n\n${formatted}`,
+          },
+        ],
+      }
+    } catch (error) {
+      log.error('Error browsing timeline:', error)
+      return {
+        content: [
+          {
+            type: 'text' as const,
+            text: `Error browsing timeline: ${error instanceof Error ? error.message : String(error)}`,
+          },
+        ],
+        isError: true,
+      }
+    }
+  }
+
+  /**
+   * Samples events down to the limit using the chosen strategy.
+   */
+  private sampleEvents<T>(events: T[], limit: number, sampling: 'uniform' | 'recent_first'): T[] {
+    if (events.length <= limit) return events
+
+    if (sampling === 'recent_first') {
+      return events.slice(-limit)
+    }
+
+    // Uniform: pick evenly spaced indices across the full range
+    const result: T[] = []
+    const step = (events.length - 1) / (limit - 1)
+    for (let i = 0; i < limit; i++) {
+      const idx = Math.round(i * step)
+      if (idx < events.length) {
+        result.push(events[idx] as T)
+      }
+    }
+    return result
   }
 
   /**

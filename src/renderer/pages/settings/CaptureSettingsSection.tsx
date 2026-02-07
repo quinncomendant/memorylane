@@ -14,6 +14,13 @@ export function CaptureSettingsSection(): React.JSX.Element {
   const [saving, setSaving] = useState(false)
   const [resetting, setResetting] = useState(false)
 
+  const sliderChanged = (setter: (v: number) => void) => {
+    return (value: number | readonly number[]) => {
+      const v = Array.isArray(value) ? value[0] : value
+      if (v !== undefined) setter(v)
+    }
+  }
+
   const loadSettings = useCallback(async () => {
     try {
       const response = await api.get()
@@ -87,9 +94,7 @@ export function CaptureSettingsSection(): React.JSX.Element {
             max={20}
             step={1}
             value={[dhashThreshold]}
-            onValueChange={(values) => {
-              if (values[0] !== undefined) setDhashThreshold(values[0])
-            }}
+            onValueChange={sliderChanged(setDhashThreshold)}
           />
           <p className="text-xs text-muted-foreground mt-1">
             Lower = more sensitive (more captures). Higher = less sensitive.
@@ -106,9 +111,7 @@ export function CaptureSettingsSection(): React.JSX.Element {
             max={5000}
             step={100}
             value={[typingTimeout]}
-            onValueChange={(values) => {
-              if (values[0] !== undefined) setTypingTimeout(values[0])
-            }}
+            onValueChange={sliderChanged(setTypingTimeout)}
           />
           <p className="text-xs text-muted-foreground mt-1">
             How long to wait after last keystroke before ending typing session.
@@ -125,9 +128,7 @@ export function CaptureSettingsSection(): React.JSX.Element {
             max={2000}
             step={50}
             value={[scrollTimeout]}
-            onValueChange={(values) => {
-              if (values[0] !== undefined) setScrollTimeout(values[0])
-            }}
+            onValueChange={sliderChanged(setScrollTimeout)}
           />
           <p className="text-xs text-muted-foreground mt-1">
             How long to wait after last scroll before ending scroll session.

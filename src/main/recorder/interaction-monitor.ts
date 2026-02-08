@@ -397,14 +397,6 @@ export function onInteraction(callback: OnInteractionCallback): void {
 }
 
 /**
- * Remove all registered interaction callbacks.
- * Prevents callback accumulation across start/stop cycles.
- */
-export function clearInteractionCallbacks(): void {
-  interactionCallbacks.length = 0
-}
-
-/**
  * Check if interaction monitoring is currently running
  */
 export function isMonitoring(): boolean {

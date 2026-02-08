@@ -32,8 +32,6 @@ function getOcrScriptPath(): string {
  * @returns Promise resolving to the extracted text
  * @throws Error if the file doesn't exist or the OCR process fails
  */
-const OCR_TIMEOUT_MS = 30_000
-
 export async function extractText(filepath: string): Promise<string> {
   const scriptPath = getOcrScriptPath()
 
@@ -44,15 +42,6 @@ export async function extractText(filepath: string): Promise<string> {
     }
 
     const swift = spawn('swift', [scriptPath, filepath])
-    let settled = false
-
-    const timeout = setTimeout(() => {
-      if (!settled) {
-        settled = true
-        swift.kill('SIGKILL')
-        reject(new Error(`OCR process timed out after ${OCR_TIMEOUT_MS}ms for ${filepath}`))
-      }
-    }, OCR_TIMEOUT_MS)
 
     let stdoutData = ''
     let stderrData = ''
@@ -66,10 +55,6 @@ export async function extractText(filepath: string): Promise<string> {
     })
 
     swift.on('close', (code) => {
-      clearTimeout(timeout)
-      if (settled) return
-      settled = true
-
       if (code !== 0) {
         // The Swift script exits with 1 on known errors (missing file, Vision error)
         return reject(
@@ -85,9 +70,6 @@ export async function extractText(filepath: string): Promise<string> {
     })
 
     swift.on('error', (err) => {
-      clearTimeout(timeout)
-      if (settled) return
-      settled = true
       reject(new Error(`Failed to spawn swift process: ${err.message}`))
     })
   })

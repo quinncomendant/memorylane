@@ -12,15 +12,11 @@ import log from '../logger'
 const SCREENSHOTS_DIR = path.join(app.getPath('userData'), 'screenshots')
 const SCREENSHOT_MAX_AGE_MS = 60_000
 const CLEANUP_INTERVAL_MS = 30_000
-const MIN_CAPTURE_INTERVAL_MS = 2_000
 
 // State
 const screenshotCallbacks: OnScreenshotCallback[] = []
 let isCapturing = false
 let cleanupTimer: ReturnType<typeof setInterval> | null = null
-let interactionCallbackRegistered = false
-let isCheckingVisualChange = false
-let lastCaptureTimestamp = 0
 
 // Ensure screenshots directory exists
 function ensureScreenshotsDir(): void {
@@ -76,10 +72,8 @@ export async function captureNow(reason?: CaptureReason): Promise<Screenshot> {
     throw new Error('No screen sources available for capture')
   }
 
+  // Use the primary display (first source)
   const primarySource = sources[0]
-  if (primarySource === undefined) {
-    throw new Error('No screen sources available for capture')
-  }
   const thumbnail = primarySource.thumbnail
 
   // Generate screenshot metadata
@@ -153,56 +147,33 @@ export function startCapture(): void {
       log.error('[Capture] Failed to capture initial baseline:', error)
     })
 
-  // Register interaction callback once; the isCapturing guard prevents
-  // work when capture is stopped, avoiding callback accumulation across
-  // start/stop cycles.
-  if (!interactionCallbackRegistered) {
-    interactionCallbackRegistered = true
-    interactionMonitor.onInteraction(async (context) => {
-      if (!isCapturing) return
+  // Register interaction monitor callback
+  interactionMonitor.onInteraction(async (context) => {
+    log.info(`[Capture] Interaction detected: ${context.type}`)
 
-      // Throttle: skip if a visual check is already in-flight
-      if (isCheckingVisualChange) {
-        log.info(`[Capture] Skipping interaction (visual check already in-flight)`)
-        return
-      }
+    // Check visual change against baseline
+    const result = await visualDetector.checkAgainstBaseline()
 
-      // Throttle: enforce minimum interval between captures
-      const now = Date.now()
-      if (now - lastCaptureTimestamp < MIN_CAPTURE_INTERVAL_MS) {
-        log.info(`[Capture] Skipping interaction (within ${MIN_CAPTURE_INTERVAL_MS}ms cooldown)`)
-        return
-      }
+    if (result.changed) {
+      log.info(
+        `[Capture] Visual change detected (${result.difference.toFixed(1)}%) - capturing new screenshot`,
+      )
 
-      isCheckingVisualChange = true
-      try {
-        log.info(`[Capture] Interaction detected: ${context.type}`)
+      // Capture new screenshot
+      await captureNow({
+        type: 'baseline_change',
+        confidence: result.difference,
+      })
 
-        // Check visual change against baseline
-        // (auto-promotes baseline on change, no separate updateBaseline() needed)
-        const result = await visualDetector.checkAgainstBaseline()
-
-        if (result.changed) {
-          log.info(
-            `[Capture] Visual change detected (${result.difference.toFixed(1)}%) - capturing new screenshot`,
-          )
-
-          await captureNow({
-            type: 'baseline_change',
-            confidence: result.difference,
-          })
-
-          lastCaptureTimestamp = Date.now()
-        } else {
-          log.info(
-            `[Capture] No significant change (${result.difference.toFixed(1)}%) - keeping current baseline`,
-          )
-        }
-      } finally {
-        isCheckingVisualChange = false
-      }
-    })
-  }
+      // Update baseline to new screenshot
+      await visualDetector.updateBaseline()
+      log.info('[Capture] Baseline updated to new screenshot')
+    } else {
+      log.info(
+        `[Capture] No significant change (${result.difference.toFixed(1)}%) - keeping current baseline`,
+      )
+    }
+  })
 }
 
 /**

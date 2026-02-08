@@ -41,9 +41,9 @@ function calculateDHash(buffer: Buffer, width: number, height: number): string {
 
   // Convert to grayscale
   for (let i = 0; i < buffer.length; i += 4) {
-    const r = buffer[i] ?? 0
-    const g = buffer[i + 1] ?? 0
-    const b = buffer[i + 2] ?? 0
+    const r = buffer[i]
+    const g = buffer[i + 1]
+    const b = buffer[i + 2]
     const gray = Math.floor(0.299 * r + 0.587 * g + 0.114 * b)
     grayscale.push(gray)
   }
@@ -53,7 +53,7 @@ function calculateDHash(buffer: Buffer, width: number, height: number): string {
   for (let y = 0; y < height; y++) {
     for (let x = 0; x < width - 1; x++) {
       const idx = y * width + x
-      hash += (grayscale[idx] ?? 0) < (grayscale[idx + 1] ?? 0) ? '1' : '0'
+      hash += grayscale[idx] < grayscale[idx + 1] ? '1' : '0'
     }
   }
 
@@ -93,9 +93,6 @@ async function captureSample(): Promise<Buffer> {
   }
 
   const primarySource = sources[0]
-  if (primarySource === undefined) {
-    throw new Error('No screen sources available for sampling')
-  }
   const thumbnail = primarySource.thumbnail
 
   // Get raw bitmap data for comparison
@@ -133,10 +130,6 @@ export async function checkAgainstBaseline(): Promise<{ changed: boolean; differ
       log.info(
         `[Visual Detector] Significant change detected (>=${config.DHASH_THRESHOLD_PERCENT}%)`,
       )
-      // Promote current hash to baseline immediately, avoiding a redundant
-      // updateBaseline() -> captureSample() -> desktopCapturer.getSources() call.
-      baselineHash = currentHash
-      log.info('[Visual Detector] Baseline auto-promoted from change check')
     }
 
     return { changed, difference }

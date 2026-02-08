@@ -18,11 +18,6 @@ export class EventProcessor {
   private startScreenshot: Screenshot | null = null
   private startOcrText = ''
 
-  // Processing queue: limits concurrent processScreenshot calls to 1
-  private readonly processingQueue: (() => Promise<void>)[] = []
-  private activeProcessingCount = 0
-  private readonly maxConcurrentProcessing = 2
-
   constructor(
     embeddingService: EmbeddingService,
     storageService: StorageService,
@@ -44,9 +39,6 @@ export class EventProcessor {
   /**
    * Main pipeline: OCR -> Embed -> Store -> Classification -> Cleanup
    *
-   * Queued to limit concurrency: at most maxConcurrentProcessing pipelines
-   * run simultaneously, preventing subprocess and ONNX inference explosion.
-   *
    * Flow:
    * 1. OCR extracts text from screenshot (needs file)
    * 2. Generate embedding from text
@@ -56,36 +48,6 @@ export class EventProcessor {
    * 6. Delete screenshot files after classification (or immediately if no classifier)
    */
   public async processScreenshot(screenshot: Screenshot): Promise<void> {
-    return new Promise<void>((resolve, reject) => {
-      const task = async (): Promise<void> => {
-        try {
-          await this.processScreenshotInternal(screenshot)
-          resolve()
-        } catch (error) {
-          reject(error)
-        }
-      }
-
-      this.processingQueue.push(task)
-      this.drainQueue()
-    })
-  }
-
-  private drainQueue(): void {
-    while (
-      this.activeProcessingCount < this.maxConcurrentProcessing &&
-      this.processingQueue.length > 0
-    ) {
-      const task = this.processingQueue.shift()!
-      this.activeProcessingCount++
-      task().finally(() => {
-        this.activeProcessingCount--
-        this.drainQueue()
-      })
-    }
-  }
-
-  private async processScreenshotInternal(screenshot: Screenshot): Promise<void> {
     const { filepath, id } = screenshot
 
     // Grab pending events and reset for next screenshot

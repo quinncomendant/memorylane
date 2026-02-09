@@ -56,7 +56,10 @@ function hammingDistance(hash1: string | null, hash2: string | null): number {
  * Check a pre-captured bitmap against the baseline (no desktopCapturer call).
  * The bitmap must match the configured sample dimensions (RGBA pixel data).
  */
-export function checkBitmapAgainstBaseline(bitmap: Buffer): {
+export function checkBitmapAgainstBaseline(
+  bitmap: Buffer,
+  useMostRecentAsBaseline: boolean = true,
+): {
   changed: boolean
   difference: number
 } {
@@ -81,6 +84,10 @@ export function checkBitmapAgainstBaseline(bitmap: Buffer): {
     log.info(
       `[Visual Detector] Significant change detected (>=${VISUAL_DETECTOR_CONFIG.DHASH_THRESHOLD_PERCENT}%)`,
     )
+  }
+
+  if (useMostRecentAsBaseline) {
+    baselineHash = currentHash
   }
 
   return { changed, difference }

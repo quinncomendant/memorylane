@@ -3,7 +3,12 @@ import { app, desktopCapturer } from 'electron'
 import { v4 as uuidv4 } from 'uuid'
 import * as fs from 'fs'
 import * as path from 'path'
-import { Screenshot, OnScreenshotCallback, CaptureReason } from '../../shared/types'
+import {
+  Screenshot,
+  OnScreenshotCallback,
+  CaptureReason,
+  InteractionContext,
+} from '../../shared/types'
 import { CAPTURE_RATE_CONFIG } from '@constants'
 import * as visualDetector from './visual-detector'
 import * as interactionMonitor from './interaction-monitor'
@@ -86,6 +91,58 @@ async function captureSampleBitmap(): Promise<Buffer> {
 }
 
 /**
+ * Handle an interaction event by checking for visual changes and capturing if needed.
+ */
+async function handleInteraction(context: InteractionContext): Promise<void> {
+  const now = Date.now()
+  const timeSinceLastCapture = now - lastCaptureTime
+
+  if (timeSinceLastCapture < CAPTURE_RATE_CONFIG.MIN_CAPTURE_INTERVAL_MS) {
+    log.info(
+      `[Capture] Interaction skipped (cooldown: ${timeSinceLastCapture}ms < ${CAPTURE_RATE_CONFIG.MIN_CAPTURE_INTERVAL_MS}ms)`,
+    )
+    return
+  }
+
+  if (isProcessingInteraction) {
+    log.info('[Capture] Interaction skipped (already processing)')
+    return
+  }
+
+  isProcessingInteraction = true
+
+  try {
+    log.info(`[Capture] Interaction detected: ${context.type}`)
+
+    const sampleBitmap = await captureSampleBitmap()
+    const result = visualDetector.checkBitmapAgainstBaseline(sampleBitmap)
+
+    if (result.changed) {
+      log.info(
+        `[Capture] Visual change detected (${result.difference.toFixed(1)}%) - capturing full-res screenshot`,
+      )
+
+      const fullSource = await captureScreen(FULL_RES_SIZE)
+      saveScreenshotFromSource(fullSource, {
+        type: 'baseline_change',
+        confidence: result.difference,
+      })
+
+      lastCaptureTime = Date.now()
+
+      visualDetector.updateBaselineFromBitmap(sampleBitmap)
+      log.info('[Capture] Baseline updated to new screenshot')
+    } else {
+      log.info(
+        `[Capture] No significant change (${result.difference.toFixed(1)}%) - keeping current baseline`,
+      )
+    }
+  } finally {
+    isProcessingInteraction = false
+  }
+}
+
+/**
  * Save a screenshot from an already-captured source, notify callbacks, and return metadata.
  */
 function saveScreenshotFromSource(
@@ -163,54 +220,7 @@ export function startCapture(): void {
     })
 
   // Register interaction monitor callback
-  interactionMonitor.onInteraction(async (context) => {
-    const now = Date.now()
-    const timeSinceLastCapture = now - lastCaptureTime
-
-    if (timeSinceLastCapture < CAPTURE_RATE_CONFIG.MIN_CAPTURE_INTERVAL_MS) {
-      log.info(
-        `[Capture] Interaction skipped (cooldown: ${timeSinceLastCapture}ms < ${CAPTURE_RATE_CONFIG.MIN_CAPTURE_INTERVAL_MS}ms)`,
-      )
-      return
-    }
-
-    if (isProcessingInteraction) {
-      log.info('[Capture] Interaction skipped (already processing)')
-      return
-    }
-
-    isProcessingInteraction = true
-
-    try {
-      log.info(`[Capture] Interaction detected: ${context.type}`)
-
-      const sampleBitmap = await captureSampleBitmap()
-      const result = visualDetector.checkBitmapAgainstBaseline(sampleBitmap)
-
-      if (result.changed) {
-        log.info(
-          `[Capture] Visual change detected (${result.difference.toFixed(1)}%) - capturing full-res screenshot`,
-        )
-
-        const fullSource = await captureScreen(FULL_RES_SIZE)
-        saveScreenshotFromSource(fullSource, {
-          type: 'baseline_change',
-          confidence: result.difference,
-        })
-
-        lastCaptureTime = Date.now()
-
-        visualDetector.updateBaselineFromBitmap(sampleBitmap)
-        log.info('[Capture] Baseline updated to new screenshot')
-      } else {
-        log.info(
-          `[Capture] No significant change (${result.difference.toFixed(1)}%) - keeping current baseline`,
-        )
-      }
-    } finally {
-      isProcessingInteraction = false
-    }
-  })
+  interactionMonitor.onInteraction(handleInteraction)
 }
 
 /**
@@ -235,6 +245,9 @@ export function stopCapture(): void {
 
   // Stop visual detection
   visualDetector.stopVisualDetection()
+
+  // Clear interaction monitor callbacks
+  interactionMonitor.clearInteractionCallback(handleInteraction)
 
   // Stop interaction monitoring
   interactionMonitor.stopInteractionMonitoring()

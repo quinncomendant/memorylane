@@ -54,9 +54,6 @@ function handleMouseClick(event: UiohookMouseEvent): void {
     },
   }
 
-  console.log('len of interactionCallbacks', interactionCallbacks.length)
-  console.log('callbacks', interactionCallbacks)
-
   interactionCallbacks.forEach((callback) => {
     try {
       callback(context)
@@ -304,6 +301,7 @@ export function startInteractionMonitoring(): void {
 
 /**
  * Stop monitoring user interactions
+ * This will clear all registered callbacks - they will need to be re-registered if you want to start monitoring again
  */
 export function stopInteractionMonitoring(): void {
   if (!isRunning) {
@@ -353,10 +351,20 @@ export function stopInteractionMonitoring(): void {
 }
 
 /**
- * Register a callback to be notified when interactions trigger captures
+ * Register a callback to be notified when interactions trigger captures.
  */
 export function onInteraction(callback: OnInteractionCallback): void {
   interactionCallbacks.push(callback)
+}
+
+/**
+ * Clear a specific callback from the registered callbacks.
+ */
+export function clearInteractionCallback(callback: OnInteractionCallback): void {
+  if (!interactionCallbacks.includes(callback)) {
+    return
+  }
+  interactionCallbacks.splice(interactionCallbacks.indexOf(callback), 1)
 }
 
 /**

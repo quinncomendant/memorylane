@@ -115,6 +115,12 @@ These are:
 2. Rebuilt for Electron via `postinstall` script
 3. Unpacked from ASAR via electron-builder config
 
+### Single-Runtime Environment
+
+All scripts run under Electron's Node.js via `scripts/enode.sh`. Native modules are compiled once for Electron during `npm install` (via postinstall) and never need rebuilding. This eliminates ABI mismatch errors when switching between tests and dev.
+
+The `enode.sh` wrapper sets `ELECTRON_RUN_AS_NODE=1` and executes the command through Electron's bundled Node.js binary. This ensures tests (`npm test`), utility scripts (`npm run db:stats`, etc.), and the Electron app itself all use the same ABI.
+
 ### TypeScript Configuration
 
 - Target: ESNext

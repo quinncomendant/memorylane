@@ -12,6 +12,7 @@ interface IntegrationsSectionProps {
 export function IntegrationsSection({ api }: IntegrationsSectionProps): React.JSX.Element {
   const [addingClaude, setAddingClaude] = useState(false)
   const [addingCursor, setAddingCursor] = useState(false)
+  const [addingClaudeCode, setAddingClaudeCode] = useState(false)
 
   const handleAddToClaude = useCallback(async () => {
     setAddingClaude(true)
@@ -34,6 +35,18 @@ export function IntegrationsSection({ api }: IntegrationsSectionProps): React.JS
       toast.error('Failed to add to Cursor')
     } finally {
       setAddingCursor(false)
+    }
+  }, [api])
+
+  const handleAddToClaudeCode = useCallback(async () => {
+    setAddingClaudeCode(true)
+    try {
+      await api.addToClaudeCode()
+      toast.success('Added to Claude Code')
+    } catch {
+      toast.error('Failed to add to Claude Code')
+    } finally {
+      setAddingClaudeCode(false)
     }
   }, [api])
 
@@ -63,6 +76,15 @@ export function IntegrationsSection({ api }: IntegrationsSectionProps): React.JS
           onClick={() => void handleAddToCursor()}
         >
           {addingCursor ? 'Adding...' : 'Add to Cursor'}
+        </Button>
+        <Button
+          variant="outline"
+          size="sm"
+          className="flex-1"
+          disabled={addingClaudeCode}
+          onClick={() => void handleAddToClaudeCode()}
+        >
+          {addingClaudeCode ? 'Adding...' : 'Claude Code'}
         </Button>
       </CardContent>
     </Card>

@@ -86,6 +86,7 @@ export interface SettingsAPI {
   openExternal: (url: string) => Promise<void>
   addToClaude: () => Promise<void>
   addToCursor: () => Promise<void>
+  addToClaudeCode: () => Promise<void>
 }
 
 export interface MainWindowStatus {
@@ -109,6 +110,7 @@ export interface MainWindowAPI {
   deleteApiKey: () => Promise<SaveResult>
   addToClaude: () => Promise<void>
   addToCursor: () => Promise<void>
+  addToClaudeCode: () => Promise<void>
   // Stats
   getStats: () => Promise<MainWindowStats>
 }

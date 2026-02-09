@@ -8,6 +8,7 @@ import log from '../logger'
 import { formatBytes, formatNumber } from '../utils/formatters'
 import { registerWithClaudeDesktop } from '../integrations/claude-desktop'
 import { registerWithCursor } from '../integrations/cursor'
+import { registerWithClaudeCode } from '../integrations/claude-code'
 import type { EventProcessor } from '../processor/index'
 import { sendStatusToRenderer, openMainWindow } from './main-window'
 
@@ -157,6 +158,12 @@ export const updateTrayMenu = async (): Promise<void> => {
       label: 'Add to Cursor',
       click: () => {
         void registerWithCursor()
+      },
+    },
+    {
+      label: 'Add to Claude Code',
+      click: () => {
+        void registerWithClaudeCode()
       },
     },
     { type: 'separator' },

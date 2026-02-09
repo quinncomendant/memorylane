@@ -20,6 +20,7 @@ contextBridge.exposeInMainWorld('mainWindowAPI', {
   // Integrations
   addToClaude: () => ipcRenderer.invoke('main-window:addToClaude'),
   addToCursor: () => ipcRenderer.invoke('main-window:addToCursor'),
+  addToClaudeCode: () => ipcRenderer.invoke('main-window:addToClaudeCode'),
   // Stats
   getStats: () => ipcRenderer.invoke('main-window:getStats'),
 })

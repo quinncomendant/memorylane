@@ -11,6 +11,7 @@ import log from '../logger'
 import { updateTrayMenu } from './tray'
 import { registerWithClaudeDesktop } from '../integrations/claude-desktop'
 import { registerWithCursor } from '../integrations/cursor'
+import { registerWithClaudeCode } from '../integrations/claude-code'
 import type { EventProcessor } from '../processor/index'
 import type { ApiKeyManager } from '../settings/api-key-manager'
 import type { SemanticClassifierService } from '../processor/semantic-classifier'
@@ -212,6 +213,7 @@ export function initMainWindowIPC(dependencies: MainWindowDependencies): void {
   // Integrations
   ipcMain.handle('main-window:addToClaude', () => registerWithClaudeDesktop())
   ipcMain.handle('main-window:addToCursor', () => registerWithCursor())
+  ipcMain.handle('main-window:addToClaudeCode', () => registerWithClaudeCode())
 
   // Stats
   ipcMain.handle('main-window:getStats', () => buildStats())

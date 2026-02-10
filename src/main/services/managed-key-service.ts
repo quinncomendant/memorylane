@@ -62,7 +62,7 @@ export class ManagedKeyService {
 
     const deviceId = this.deviceIdentity.getDeviceId()
 
-    const url = new URL('/api/checkout', MANAGED_KEY_CONFIG.BACKEND_URL)
+    const url = new URL('/subscription/checkout', MANAGED_KEY_CONFIG.BACKEND_URL)
     url.searchParams.set('device_id', deviceId)
 
     this.setStatus('awaiting_checkout')
@@ -80,7 +80,7 @@ export class ManagedKeyService {
   public async openSubscriptionPortal(): Promise<void> {
     const deviceId = this.deviceIdentity.getDeviceId()
 
-    const url = new URL('/api/subscription/portal', MANAGED_KEY_CONFIG.BACKEND_URL)
+    const url = new URL('/subscription/portal', MANAGED_KEY_CONFIG.BACKEND_URL)
     url.searchParams.set('device_id', deviceId)
 
     await shell.openExternal(url.toString())
@@ -127,7 +127,7 @@ export class ManagedKeyService {
    * Throws on network errors or non-OK responses that aren't server errors.
    */
   private async fetchKey(deviceId: string): Promise<string | null> {
-    const url = new URL('/api/subscription/key', MANAGED_KEY_CONFIG.BACKEND_URL)
+    const url = new URL('/subscription/key', MANAGED_KEY_CONFIG.BACKEND_URL)
     url.searchParams.set('device_id', deviceId)
 
     const response = await fetch(url.toString())

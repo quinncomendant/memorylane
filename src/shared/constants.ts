@@ -31,7 +31,7 @@ export const CONTEXT_CAPTURE_CONFIG = {
 
 // Managed Key / Subscription Configuration
 export const MANAGED_KEY_CONFIG = {
-  BACKEND_URL: 'http://localhost:8000/',
+  BACKEND_URL: 'https://api.trymemorylane.com/',
   POLL_INTERVAL_MS: 5_000,
   POLL_TIMEOUT_MS: 600_000, // 10 minutes
 }

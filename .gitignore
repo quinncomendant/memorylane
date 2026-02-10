@@ -121,3 +121,6 @@ Desktop.ini
 
 # macOS debug symbols
 *.dSYM
+
+# Playground dir
+playground/

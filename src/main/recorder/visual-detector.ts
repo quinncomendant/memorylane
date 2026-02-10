@@ -74,6 +74,18 @@ export function checkBitmapAgainstBaseline(
   }
 
   const currentHash = calculateDHash(bitmap)
+
+  if (baselineHash.length !== currentHash.length) {
+    log.debug(
+      `[Visual Detector] Hash length mismatch (${baselineHash.length} vs ${currentHash.length})` +
+        ' - different screen dimensions, treating as changed',
+    )
+    if (useMostRecentAsBaseline) {
+      baselineHash = currentHash
+    }
+    return { changed: true, difference: 100 }
+  }
+
   const difference = hammingDistance(baselineHash, currentHash)
 
   log.info(`[Visual Detector] Baseline comparison: ${difference.toFixed(1)}%`)

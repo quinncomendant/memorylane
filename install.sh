@@ -42,7 +42,8 @@ TMPDIR=$(mktemp -d)
 trap 'rm -rf "$TMPDIR"' EXIT
 
 echo "Downloading $ZIP_NAME..."
-HTTP_CODE=$(curl -fSL -w "%{http_code}" -o "$TMPDIR/$APP_NAME.zip" "$ZIP_URL" 2>/dev/null) || true
+HTTP_CODE=$(curl -fSL --progress-bar -w "%{http_code}" -o "$TMPDIR/$APP_NAME.zip" "$ZIP_URL") || true
+echo ""
 
 if [ ! -f "$TMPDIR/$APP_NAME.zip" ] || [ "$HTTP_CODE" = "404" ]; then
   echo "Error: download failed (HTTP $HTTP_CODE)."

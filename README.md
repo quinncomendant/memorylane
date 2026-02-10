@@ -16,6 +16,12 @@ Desktop app that sees what you see, stores summaries about it locally and lets y
 
 🎬 [Demo](https://www.loom.com/share/513b213e82d14323999e419fa434576d)
 
+<p align="center">
+  <img src="assets/readme/screenshot.jpeg" width="32%" />
+  <img src="assets/readme/claude-1.jpeg" width="32%" />
+  <img src="assets/readme/claude-2.jpeg" width="32%" />
+</p>
+
 ## Privacy & Permissions
 
 MemoryLane captures your screen to give AI assistants context about what you're working on. Here's what that means in plain terms:

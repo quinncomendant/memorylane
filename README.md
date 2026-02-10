@@ -24,7 +24,7 @@ MemoryLane captures your screen to give AI assistants context about what you're 
 
 > **⚠️ Early release — not yet Apple-notarized**
 >
-> MemoryLane is code-signed but is still waiting for Apple notarization (expected by Feb 14, 2025). This means macOS Gatekeeper will block the app on first launch — you'll need to manually approve it (see Installation below).
+> MemoryLane is code-signed but is still waiting for Apple notarization. This means macOS Gatekeeper will block the app on first launch — you'll need to manually approve it (see Installation below).
 >
 > This is a fully functional early release. Expect rough edges.
 

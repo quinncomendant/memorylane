@@ -47,7 +47,7 @@ MemoryLane captures your screen to give AI assistants context about what you're 
 
 ### Steps
 
-1. Download `MemoryLane-0.2.0-arm64.dmg` from [trymemorylane.com](https://trymemorylane.com/)
+1. Download the latest DMG from the [Releases page](https://github.com/deusXmachina-dev/memorylane/releases/latest)
 2. Open the DMG and drag **MemoryLane** to your Applications folder
 3. Double-click the app — you'll see a warning that macOS can't verify the developer
 4. Go to **System Settings → Privacy & Security**, scroll down, and click **"Open Anyway"** next to the MemoryLane message
@@ -88,10 +88,6 @@ AI conversations are full of friction because LLMs have no context about you. Me
 4. Vector embeddings enable semantic search over your history
 5. An MCP server exposes your history to AI assistants on demand
 
-### Architecture
-
-![Architecture](assets/arch-1.png)
-
 ### Why cloud AI models?
 
 **Performance** — local models are ~4 GB and turn laptops into space heaters. We believe most users prefer speed and normal battery life from an invisible background app.
@@ -109,8 +105,7 @@ That said, we'd love to see someone prove us wrong — it's one reason we open-s
 
 ## Limitations
 
-1. **Single display only** — captures from one screen; multi-monitor support is coming ([#4](https://github.com/deusXmachina-dev/memorylane/issues/4))
-2. **macOS ARM64 only** — this release is Apple Silicon only; Intel Mac, Windows, and Linux builds are planned
+1. **macOS ARM64 only** — this release is Apple Silicon only; Intel Mac, Windows, and Linux builds are planned
 
 ## Coming Soon
 

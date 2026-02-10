@@ -1,10 +1,12 @@
-# MemoryLane v0.4.0
+# MemoryLane v0.4.1
 
 MemoryLane is a macOS system tray app that captures your screen activity, processes it with OCR and AI summarization, and makes it searchable through an MCP server — giving AI assistants like Claude and Cursor memory of what you've been working on.
 
 ## What's Changed
 
 - **Stripe subscription for simpler AI setup** — subscribe ($20/mo) and get a managed OpenRouter API key provisioned automatically. No need to create an OpenRouter account or manage keys yourself. Bring Your Own Key is still supported for users who prefer it.
+- **Cleaner UI for managed subscribers** — API cost details are hidden when using a managed key, keeping the interface focused
+- **Updated README** — added screenshots, reorganized sections, and made the subscription option more prominent
 
 ## Features
 
@@ -45,4 +47,4 @@ After launching:
 
 ## Full Changelog
 
-https://github.com/deusXmachina-dev/memorylane/commits/v0.4.0
+https://github.com/deusXmachina-dev/memorylane/commits/v0.4.1

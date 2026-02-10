@@ -21,6 +21,12 @@ contextBridge.exposeInMainWorld('mainWindowAPI', {
   addToClaude: () => ipcRenderer.invoke('main-window:addToClaude'),
   addToCursor: () => ipcRenderer.invoke('main-window:addToCursor'),
   addToClaudeCode: () => ipcRenderer.invoke('main-window:addToClaudeCode'),
+  // Subscription
+  startCheckout: () => ipcRenderer.invoke('main-window:startCheckout'),
+  getSubscriptionStatus: () => ipcRenderer.invoke('main-window:getSubscriptionStatus'),
+  onSubscriptionUpdate: (callback: (update: unknown) => void) => {
+    ipcRenderer.on('main-window:subscriptionUpdate', (_event, update) => callback(update))
+  },
   // Stats
   getStats: () => ipcRenderer.invoke('main-window:getStats'),
 })

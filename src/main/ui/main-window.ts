@@ -15,6 +15,7 @@ import { registerWithClaudeCode } from '../integrations/claude-code'
 import type { EventProcessor } from '../processor/index'
 import type { ApiKeyManager } from '../settings/api-key-manager'
 import type { SemanticClassifierService } from '../processor/semantic-classifier'
+import type { ManagedKeyService } from '../services/managed-key-service'
 import type { MainWindowStats } from '../../shared/types'
 
 interface MainWindowDependencies {
@@ -29,6 +30,7 @@ interface MainWindowDependencies {
   processor: EventProcessor
   apiKeyManager: ApiKeyManager
   classifierService: SemanticClassifierService
+  managedKeyService: ManagedKeyService
 }
 
 interface MainWindowStatus {
@@ -214,6 +216,30 @@ export function initMainWindowIPC(dependencies: MainWindowDependencies): void {
   ipcMain.handle('main-window:addToClaude', () => registerWithClaudeDesktop())
   ipcMain.handle('main-window:addToCursor', () => registerWithCursor())
   ipcMain.handle('main-window:addToClaudeCode', () => registerWithClaudeCode())
+
+  // Subscription / managed key
+  deps.managedKeyService.setUpdateCallback((status, payload) => {
+    if (payload?.key && deps) {
+      deps.apiKeyManager.saveApiKey(payload.key, 'managed')
+      deps.classifierService.updateApiKey(payload.key)
+    }
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.webContents.send('main-window:subscriptionUpdate', {
+        status,
+        error: payload?.error,
+      })
+    }
+  })
+
+  ipcMain.handle('main-window:startCheckout', async () => {
+    if (!deps) return
+    await deps.managedKeyService.startCheckout()
+  })
+
+  ipcMain.handle('main-window:getSubscriptionStatus', () => {
+    if (!deps) return 'idle'
+    return deps.managedKeyService.getStatus()
+  })
 
   // Stats
   ipcMain.handle('main-window:getStats', () => buildStats())

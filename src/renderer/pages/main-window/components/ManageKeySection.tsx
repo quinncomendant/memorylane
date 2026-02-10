@@ -80,7 +80,7 @@ export function ManageKeySection({
     [handleSave],
   )
 
-  const canDelete = keyStatus.source === 'stored'
+  const canDelete = keyStatus.source === 'stored' || keyStatus.source === 'managed'
 
   return (
     <div className="space-y-3">

@@ -35,6 +35,8 @@ import { EmbeddingService } from './processor/embedding'
 import { StorageService } from './processor/storage'
 import { SemanticClassifierService } from './processor/semantic-classifier'
 import { ApiKeyManager } from './settings/api-key-manager'
+import { DeviceIdentity } from './settings/device-identity'
+import { ManagedKeyService } from './services/managed-key-service'
 import { config as loadEnv } from 'dotenv'
 
 try {
@@ -103,6 +105,7 @@ if (isMCPMode) {
   let processor: EventProcessor | null = null
   let apiKeyManager: ApiKeyManager | null = null
   let classifierService: SemanticClassifierService | null = null
+  let managedKeyService: ManagedKeyService | null = null
 
   const initRecorderMode = async () => {
     // Dynamic imports for recorder-specific modules
@@ -117,6 +120,10 @@ if (isMCPMode) {
     const storageService = new StorageService(StorageService.getDefaultDbPath())
     classifierService = new SemanticClassifierService(apiKeyManager.getApiKey() || undefined)
     processor = new EventProcessor(embeddingService, storageService, classifierService)
+
+    // Initialize managed key service for subscription flow
+    const deviceIdentity = new DeviceIdentity()
+    managedKeyService = new ManagedKeyService(deviceIdentity)
   }
 
   // This method will be called when Electron has finished initialization
@@ -156,7 +163,12 @@ if (isMCPMode) {
       processor: processor!,
       apiKeyManager: apiKeyManager!,
       classifierService: classifierService!,
+      managedKeyService: managedKeyService!,
     })
+
+    // If a managed key was provisioned while the app was closed, pick it up now
+    void managedKeyService!.tryFetchKey()
+
     openMainWindow()
 
     // Wire up event handlers for screenshot processing and interaction monitoring

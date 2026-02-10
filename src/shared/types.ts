@@ -70,8 +70,15 @@ export interface SearchOptions extends SearchFilters {
 
 export interface KeyStatus {
   hasKey: boolean
-  source: 'stored' | 'env' | 'none'
+  source: 'stored' | 'managed' | 'env' | 'none'
   maskedKey: string | null
+}
+
+export type SubscriptionStatus = 'idle' | 'awaiting_checkout' | 'polling' | 'error'
+
+export interface SubscriptionUpdate {
+  status: SubscriptionStatus
+  error?: string | undefined
 }
 
 export interface SaveResult {
@@ -112,6 +119,10 @@ export interface MainWindowAPI {
   addToClaude: () => Promise<void>
   addToCursor: () => Promise<void>
   addToClaudeCode: () => Promise<void>
+  // Subscription
+  startCheckout: () => Promise<void>
+  getSubscriptionStatus: () => Promise<SubscriptionStatus>
+  onSubscriptionUpdate: (callback: (update: SubscriptionUpdate) => void) => void
   // Stats
   getStats: () => Promise<MainWindowStats>
 }

@@ -3,7 +3,7 @@ import * as fs from 'fs'
 import * as path from 'path'
 import log from '../logger'
 
-export type KeySource = 'stored' | 'env' | 'none'
+export type KeySource = 'stored' | 'managed' | 'env' | 'none'
 
 export interface KeyStatus {
   hasKey: boolean
@@ -20,20 +20,21 @@ export class ApiKeyManager {
   }
 
   /**
-   * Save API key using Electron's safeStorage for encryption
+   * Save API key using Electron's safeStorage for encryption.
+   * Pass source = 'managed' when the key was provisioned via subscription.
    */
-  public saveApiKey(key: string): void {
+  public saveApiKey(key: string, source: 'byok' | 'managed' = 'byok'): void {
     if (!safeStorage.isEncryptionAvailable()) {
       throw new Error('Secure storage is not available on this system')
     }
 
     const encrypted = safeStorage.encryptString(key)
-    const config = { apiKey: encrypted.toString('base64') }
+    const config = { apiKey: encrypted.toString('base64'), source }
 
     fs.writeFileSync(this.configPath, JSON.stringify(config, null, 2))
     this.cachedKey = key
 
-    log.info('[ApiKeyManager] API key saved securely')
+    log.info(`[ApiKeyManager] API key saved securely (source: ${source})`)
   }
 
   /**
@@ -113,12 +114,28 @@ export class ApiKeyManager {
    */
   public getKeySource(): KeySource {
     if (this.getStoredKey()) {
-      return 'stored'
+      return this.getStoredSource() === 'managed' ? 'managed' : 'stored'
     }
     if (process.env.OPENROUTER_API_KEY) {
       return 'env'
     }
     return 'none'
+  }
+
+  /**
+   * Read the source field from the stored config ('byok' | 'managed')
+   */
+  private getStoredSource(): string | null {
+    try {
+      if (!fs.existsSync(this.configPath)) {
+        return null
+      }
+      const configData = fs.readFileSync(this.configPath, 'utf-8')
+      const config = JSON.parse(configData)
+      return config.source ?? null
+    } catch {
+      return null
+    }
   }
 
   /**

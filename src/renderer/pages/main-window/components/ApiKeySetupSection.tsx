@@ -11,7 +11,7 @@ interface ApiKeySetupSectionProps {
 export function ApiKeySetupSection({ api, onKeySet }: ApiKeySetupSectionProps): React.JSX.Element {
   return (
     <div className="grid grid-cols-2 gap-4">
-      <SubscribeColumn />
+      <SubscribeColumn api={api} onKeySet={onKeySet} />
       <BringYourOwnKeyColumn api={api} onKeySet={onKeySet} />
     </div>
   )

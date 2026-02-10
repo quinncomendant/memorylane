@@ -28,3 +28,10 @@ export const CAPTURE_RATE_CONFIG = {
 export const CONTEXT_CAPTURE_CONFIG = {
   ENABLED: false, // Disabled by default (requires permissions)
 }
+
+// Managed Key / Subscription Configuration
+export const MANAGED_KEY_CONFIG = {
+  BACKEND_URL: 'http://localhost:8000/',
+  POLL_INTERVAL_MS: 5_000,
+  POLL_TIMEOUT_MS: 600_000, // 10 minutes
+}

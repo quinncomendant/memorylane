@@ -12,12 +12,25 @@
  *   npx @modelcontextprotocol/inspector npm run mcp:start
  */
 
+// Capture the real stdout IMMEDIATELY and redirect process.stdout to stderr.
+// The MCP stdio protocol owns stdout exclusively — this prevents ANY module
+// (dotenv, native addons, etc.) from polluting the transport channel.
+import { Writable } from 'node:stream'
+
+const realWrite = process.stdout.write.bind(process.stdout)
+const mcpStdout = new Writable({
+  write(chunk, encoding, callback): void {
+    realWrite(chunk, encoding as BufferEncoding, callback)
+  },
+})
+process.stdout.write = process.stderr.write.bind(process.stderr) as typeof process.stdout.write
+
 import { MemoryLaneMCPServer } from '../src/main/mcp/server'
 import { getDefaultDbPath } from '../src/main/paths'
 
 async function main() {
   const server = new MemoryLaneMCPServer()
-  await server.start(getDefaultDbPath())
+  await server.start(getDefaultDbPath(), mcpStdout)
 }
 
 main().catch((error) => {

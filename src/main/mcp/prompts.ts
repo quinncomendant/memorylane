@@ -7,6 +7,51 @@ import { z } from 'zod'
  */
 export function registerPrompts(server: McpServer): void {
   server.registerPrompt(
+    'recent_activity',
+    {
+      title: 'Recent Activity',
+      description:
+        'Summarize what the user has been doing recently. ' +
+        'Fetches the latest screen activity and provides a concise overview ' +
+        'of recent work, useful as context for follow-up tasks.',
+      argsSchema: {
+        minutes: z
+          .string()
+          .optional()
+          .describe(
+            'How many minutes of recent activity to look back. Defaults to "30". ' +
+              'Examples: "15", "30", "60", "120"',
+          ),
+      },
+    },
+    ({ minutes }) => {
+      const lookback = minutes || '30'
+      return {
+        messages: [
+          {
+            role: 'user' as const,
+            content: {
+              type: 'text' as const,
+              text:
+                `Summarize my recent screen activity from the last ${lookback} minutes.\n\n` +
+                'Instructions:\n' +
+                `1. Use browse_timeline with startTime "${lookback} minutes ago" and ` +
+                'endTime "now", with recent_first sampling and a limit of 50.\n' +
+                '2. Call get_event_details on a handful of entries that look most interesting ' +
+                'or where the summary alone is ambiguous.\n' +
+                '3. Provide a concise narrative summary of what I have been working on, ' +
+                'organized by activity or app.\n' +
+                '4. Highlight any notable items — e.g. errors, context switches, or ' +
+                'repeated focus on a particular task.\n' +
+                '5. Keep it brief: a short paragraph or a few bullet points is ideal.',
+            },
+          },
+        ],
+      }
+    },
+  )
+
+  server.registerPrompt(
     'time_report',
     {
       title: 'Time Report',

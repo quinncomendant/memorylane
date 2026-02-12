@@ -44,6 +44,9 @@ mac:
     - target: zip
       arch:
         - arm64
+    - target: dmg
+      arch:
+        - arm64
 
 win:
   target:

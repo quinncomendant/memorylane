@@ -1,6 +1,6 @@
 ---
 name: release
-description: Run the full release workflow for MemoryLane — bump version, update release notes, commit, tag, build, push, and create a GitHub release. Use when the user asks to release, ship, publish, bump version, or cut a new version.
+description: Run the full release workflow for MemoryLane — bump version, update release notes, commit, tag, push, build, and create a GitHub release. Use when the user asks to release, ship, publish, bump version, or cut a new version.
 ---
 
 # Release Workflow
@@ -52,13 +52,19 @@ npm run format
 npm run lint
 ```
 
-### 7. Commit and tag
+### 7. Commit, tag, and push
 
 ```bash
 git add -A
 git commit -m "release: vX.Y.Z"
 git tag vX.Y.Z
+git push origin main --tags
 ```
+
+Push before building. The build is deterministic (runs from the local working tree
+pinned to the tagged commit) and can take a long time due to notarization. Pushing
+first ensures the tag is on the remote immediately, regardless of how long the build
+takes or whether other commits land on `main` in the meantime.
 
 ### 8. Build the app
 
@@ -66,25 +72,33 @@ git tag vX.Y.Z
 npm run make:mac
 ```
 
-The output ZIP will be in `dist/`. Verify it exists:
+The build produces both a ZIP and a DMG in `dist/`. Verify they exist:
 
 ```bash
 ls dist/MemoryLane-X.Y.Z-arm64-mac.zip
+ls dist/MemoryLane-X.Y.Z-arm64.dmg
 ```
 
-Note: if `APPLE_ID` and `APPLE_APP_PASSWORD` env vars are not set, notarization is
-skipped automatically (`build/notarize.js` handles this). The app is still code-signed.
+Notarization runs automatically via `build/notarize.js` (requires `APPLE_ID` and
+`APPLE_APP_PASSWORD` in `.env`). The build will take a few extra minutes while Apple
+processes the notarization request. If the env vars are not set, notarization is
+skipped and the app is only code-signed.
 
-### 9. Push
+After the build completes, verify notarization and code signing:
 
 ```bash
-git push origin main --tags
+spctl --assess --verbose=4 --type execute "dist/mac-arm64/MemoryLane.app"
+codesign --verify --deep --strict "dist/mac-arm64/MemoryLane.app"
 ```
 
-### 10. Create GitHub release
+`spctl` should report `accepted` and `codesign` should exit 0 with no output.
+
+### 9. Create GitHub release
 
 ```bash
-gh release create vX.Y.Z dist/MemoryLane-X.Y.Z-arm64-mac.zip \
+gh release create vX.Y.Z \
+  dist/MemoryLane-X.Y.Z-arm64-mac.zip \
+  dist/MemoryLane-X.Y.Z-arm64.dmg \
   --title "vX.Y.Z" \
   --notes-file RELEASE_NOTES.md
 ```
@@ -98,6 +112,8 @@ Before finishing, verify:
 - [ ] Resolved known issues are removed from release notes
 - [ ] `README.md` "Coming Soon" doesn't list shipped features
 - [ ] `npm run format` and `npm run lint` pass
-- [ ] ZIP exists in `dist/`
 - [ ] Tag is pushed to origin
-- [ ] GitHub release is published with the ZIP attached
+- [ ] ZIP exists in `dist/`
+- [ ] DMG exists in `dist/`
+- [ ] Notarization verified (`spctl --assess` reports `accepted`)
+- [ ] GitHub release is published with both ZIP and DMG attached

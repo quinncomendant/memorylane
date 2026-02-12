@@ -52,8 +52,6 @@ MemoryLane captures your screen to give AI assistants context about what you're 
 > **⚠️ Early release**
 >
 > This is a fully functional early release. Expect rough edges.
->
-> The app is code-signed but not yet Apple-notarized. Use the curl installer below to avoid Gatekeeper warnings.
 
 ### What works today
 

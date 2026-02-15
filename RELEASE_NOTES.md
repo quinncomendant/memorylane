@@ -39,7 +39,7 @@ After launching:
 1. Grant **Screen Recording** permission when prompted
 2. Grant **Accessibility** permission when prompted
 3. Choose how to provide an API key:
-   - **Subscribe** _(recommended)_ — click Subscribe to get a managed key ($20/mo via Stripe)
+   - **Subscribe** _(recommended)_ — click Subscribe to get a managed key ($10/mo via Stripe)
    - **Bring Your Own Key** — paste your OpenRouter API key if you already have one
 4. Optionally register the MCP server with Claude Desktop or Cursor
 

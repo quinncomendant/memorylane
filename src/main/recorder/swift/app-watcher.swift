@@ -119,6 +119,10 @@ func buildEvent(type: String, app: NSRunningApplication, title: String) -> [Stri
 var currentAXObserver: AXObserver?
 var currentObservedPid: pid_t = 0
 
+var titleAXObserver: AXObserver?
+var titleObservedPid: pid_t = 0
+var titleObservedWindow: AXUIElement?
+
 func tearDownAXObserver() {
     if let observer = currentAXObserver {
         CFRunLoopRemoveSource(CFRunLoopGetMain(),
@@ -127,6 +131,61 @@ func tearDownAXObserver() {
         currentAXObserver = nil
         currentObservedPid = 0
     }
+}
+
+// MARK: - AXObserver for title changes (browser tab switches)
+
+func tearDownTitleObserver() {
+    if let observer = titleAXObserver {
+        if let window = titleObservedWindow {
+            AXObserverRemoveNotification(observer, window,
+                                         kAXTitleChangedNotification as CFString)
+        }
+        CFRunLoopRemoveSource(CFRunLoopGetMain(),
+                              AXObserverGetRunLoopSource(observer),
+                              .defaultMode)
+        titleAXObserver = nil
+        titleObservedPid = 0
+        titleObservedWindow = nil
+    }
+}
+
+/// Callback fired when the focused window's title changes (e.g. browser tab switch).
+let titleCallback: AXObserverCallback = { _, element, _, _ in
+    guard let app = NSWorkspace.shared.frontmostApplication else { return }
+
+    var titleValue: AnyObject?
+    let title: String
+    if AXUIElementCopyAttributeValue(element, kAXTitleAttribute as CFString, &titleValue) == .success,
+       let t = titleValue as? String {
+        title = t
+    } else {
+        title = ""
+    }
+
+    emit(buildEvent(type: "window_change", app: app, title: title))
+}
+
+func setupTitleObserver(forPid pid: pid_t) {
+    tearDownTitleObserver()
+
+    guard let window = focusedWindow(forPid: pid) else { return }
+
+    var observer: AXObserver?
+    guard AXObserverCreate(pid, titleCallback, &observer) == .success,
+          let obs = observer else { return }
+
+    AXObserverAddNotification(obs, window,
+                              kAXTitleChangedNotification as CFString,
+                              nil)
+
+    CFRunLoopAddSource(CFRunLoopGetMain(),
+                       AXObserverGetRunLoopSource(obs),
+                       .defaultMode)
+
+    titleAXObserver = obs
+    titleObservedPid = pid
+    titleObservedWindow = window
 }
 
 /// Callback fired when the focused window changes within the observed app.
@@ -143,10 +202,14 @@ let axCallback: AXObserverCallback = { _, element, _, _ in
     }
 
     emit(buildEvent(type: "window_change", app: app, title: title))
+
+    // Re-target title observer to the newly focused window
+    setupTitleObserver(forPid: app.processIdentifier)
 }
 
 func setupAXObserver(forPid pid: pid_t) {
     tearDownAXObserver()
+    tearDownTitleObserver()
 
     var observer: AXObserver?
     guard AXObserverCreate(pid, axCallback, &observer) == .success,
@@ -163,6 +226,9 @@ func setupAXObserver(forPid pid: pid_t) {
 
     currentAXObserver = obs
     currentObservedPid = pid
+
+    // Also observe title changes on the focused window (for browser tab switches)
+    setupTitleObserver(forPid: pid)
 }
 
 // MARK: - NSWorkspace notifications

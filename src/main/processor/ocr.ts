@@ -3,6 +3,7 @@ import * as path from 'path'
 import * as fs from 'fs'
 import { createOcrBackendError } from './ocr-errors'
 import { extractTextWindowsNative } from './ocr-windows-native'
+import log from '../logger'
 
 type OcrBackend = (filepath: string) => Promise<string>
 
@@ -59,10 +60,21 @@ async function extractTextMacOS(filepath: string): Promise<string> {
   const { command, args } = getMacOSOcrExecutable()
 
   return new Promise((resolve, reject) => {
+    const OCR_TIMEOUT_MS = 15_000
     const proc = spawn(command, [...args, filepath])
+    log.info(`[OCR] Spawned process (pid=${proc.pid}) for ${path.basename(filepath)}`)
 
     let stdoutData = ''
     let stderrData = ''
+    let timedOut = false
+
+    const timeout = setTimeout(() => {
+      timedOut = true
+      log.warn(
+        `[OCR] Process (pid=${proc.pid}) timed out after ${OCR_TIMEOUT_MS}ms, sending SIGTERM`,
+      )
+      proc.kill('SIGTERM')
+    }, OCR_TIMEOUT_MS)
 
     proc.stdout.on('data', (data) => {
       stdoutData += data.toString()
@@ -73,7 +85,15 @@ async function extractTextMacOS(filepath: string): Promise<string> {
     })
 
     proc.on('close', (code) => {
+      clearTimeout(timeout)
+
+      if (timedOut) {
+        log.error(`[OCR] Process (pid=${proc.pid}) killed after timeout`)
+        return reject(new Error(`OCR process timed out after ${OCR_TIMEOUT_MS}ms`))
+      }
+
       if (code !== 0) {
+        log.error(`[OCR] Process (pid=${proc.pid}) exited with code ${code}: ${stderrData.trim()}`)
         return reject(
           createOcrBackendError(
             'macos',
@@ -83,10 +103,14 @@ async function extractTextMacOS(filepath: string): Promise<string> {
         )
       }
 
+      log.info(
+        `[OCR] Process (pid=${proc.pid}) completed, extracted ${stdoutData.trim().length} chars`,
+      )
       resolve(stdoutData.trim())
     })
 
     proc.on('error', (err) => {
+      clearTimeout(timeout)
       reject(
         createOcrBackendError(
           'macos',

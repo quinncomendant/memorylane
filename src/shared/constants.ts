@@ -16,6 +16,7 @@ export const INTERACTION_MONITOR_CONFIG = {
   SCROLL_SESSION_TIMEOUT_MS: 2000, // Consider scrolling stopped after 500ms (200-2000ms)
   APP_CHANGE_POLL_MS: 500, // Poll active window every 500ms
   APP_CHANGE_FAILURE_SKIPS_N_POLLS_AFTER_ERROR: 10, // Number of polls to skip after an error
+  APP_CHANGE_IDLE_TIMEOUT_MS: 5000, // Stop polling after 5s of no user interaction
 }
 
 // Capture Rate Limiting Configuration

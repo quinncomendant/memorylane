@@ -27,6 +27,9 @@ let appChangeIntervalId: NodeJS.Timeout | null = null
 let previousWindow: { title: string; processName: string } | null = null
 let appChangeFailureSkips = 0
 
+// Activity-gated polling state
+let idleTimeoutId: NodeJS.Timeout | null = null
+
 // Display resolution state (updated by app-change poller, used by keyboard/scroll handlers)
 let cachedDisplayId: number | null = null
 
@@ -35,6 +38,33 @@ let cachedDisplayId: number | null = null
  */
 function getDisplayIdForPoint(x: number, y: number): number {
   return screen.getDisplayNearestPoint({ x, y }).id
+}
+
+/**
+ * Start (or restart) app-change polling on user activity.
+ * Automatically stops polling after APP_CHANGE_IDLE_TIMEOUT_MS of inactivity.
+ */
+function markUserActivity(): void {
+  if (!isRunning || !INTERACTION_MONITOR_CONFIG.TRACK_APP_CHANGE) return
+
+  // (Re)start the idle timeout
+  if (idleTimeoutId) clearTimeout(idleTimeoutId)
+  idleTimeoutId = setTimeout(() => {
+    if (appChangeIntervalId) {
+      clearInterval(appChangeIntervalId)
+      appChangeIntervalId = null
+      log.info('[Interaction Monitor] App change polling paused (idle)')
+    }
+  }, INTERACTION_MONITOR_CONFIG.APP_CHANGE_IDLE_TIMEOUT_MS)
+
+  // Start polling if not already running
+  if (!appChangeIntervalId) {
+    log.info('[Interaction Monitor] App change polling resumed (activity)')
+    checkAppChange().catch(log.error)
+    appChangeIntervalId = setInterval(() => {
+      checkAppChange().catch(log.error)
+    }, INTERACTION_MONITOR_CONFIG.APP_CHANGE_POLL_MS)
+  }
 }
 
 // Callback for when interaction triggers a capture
@@ -46,6 +76,8 @@ const interactionCallbacks: OnInteractionCallback[] = []
  * Throttled to prevent rapid-fire captures from fast clicking
  */
 function handleMouseClick(event: UiohookMouseEvent): void {
+  markUserActivity()
+
   if (!INTERACTION_MONITOR_CONFIG.TRACK_CLICKS) {
     return
   }
@@ -82,6 +114,8 @@ function handleMouseClick(event: UiohookMouseEvent): void {
  * Tracks "typing sessions" - emits event when user pauses typing
  */
 function handleKeyboard(): void {
+  markUserActivity()
+
   if (!INTERACTION_MONITOR_CONFIG.TRACK_KEYBOARD) {
     return
   }
@@ -145,6 +179,8 @@ function handleKeyboard(): void {
  * Tracks "scroll sessions" - emits event when user pauses scrolling
  */
 function handleScroll(event: UiohookWheelEvent): void {
+  markUserActivity()
+
   if (!INTERACTION_MONITOR_CONFIG.TRACK_SCROLL) {
     return
   }
@@ -303,15 +339,10 @@ export function startInteractionMonitoring(): void {
     uIOhook.start()
     log.info('[Interaction Monitor] uiohook started successfully')
 
-    // Start app change polling
+    // App change polling is now activity-gated:
+    // markUserActivity() will start the interval on the first user event.
     if (INTERACTION_MONITOR_CONFIG.TRACK_APP_CHANGE) {
-      // Initialize current window
-      checkAppChange().catch(log.error)
-
-      appChangeIntervalId = setInterval(() => {
-        checkAppChange().catch(log.error)
-      }, INTERACTION_MONITOR_CONFIG.APP_CHANGE_POLL_MS)
-      log.info('[Interaction Monitor] App change polling started')
+      log.info('[Interaction Monitor] App change polling will start on first user activity')
     }
   } catch (error) {
     log.error('[Interaction Monitor] Failed to start:', error)
@@ -362,6 +393,12 @@ export function stopInteractionMonitoring(): void {
       appChangeIntervalId = null
     }
 
+    // Clear idle timeout
+    if (idleTimeoutId) {
+      clearTimeout(idleTimeoutId)
+      idleTimeoutId = null
+    }
+
     // Stop the hook
     uIOhook.stop()
 
@@ -377,6 +414,7 @@ export function stopInteractionMonitoring(): void {
  */
 export function onInteraction(callback: OnInteractionCallback): void {
   interactionCallbacks.push(callback)
+  log.info(`[Interaction Monitor] Callback registered (total: ${interactionCallbacks.length})`)
 }
 
 /**
@@ -384,9 +422,13 @@ export function onInteraction(callback: OnInteractionCallback): void {
  */
 export function clearInteractionCallback(callback: OnInteractionCallback): void {
   if (!interactionCallbacks.includes(callback)) {
+    log.warn(
+      `[Interaction Monitor] Callback not found for removal (total: ${interactionCallbacks.length})`,
+    )
     return
   }
   interactionCallbacks.splice(interactionCallbacks.indexOf(callback), 1)
+  log.info(`[Interaction Monitor] Callback removed (total: ${interactionCallbacks.length})`)
 }
 
 /**

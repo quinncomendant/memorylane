@@ -15,6 +15,7 @@ import { ApiKeyManager } from './settings/api-key-manager'
 import { DeviceIdentity } from './settings/device-identity'
 import { ManagedKeyService } from './services/managed-key-service'
 import { DebugPipelineWriter } from './processor/debug-pipeline'
+import { startPowerMonitoring, shouldPause } from './power-monitor'
 import { config as loadEnv } from 'dotenv'
 
 try {
@@ -126,6 +127,21 @@ app.on('ready', async () => {
 
   app.on('activate', () => {
     openMainWindow()
+  })
+
+  startPowerMonitoring({
+    onPause: () => {
+      if (recorder.isCapturingNow()) {
+        log.info('[Main] Pausing capture (power state: locked/suspended)')
+        recorder.stopCapture()
+      }
+    },
+    onResume: () => {
+      if (!recorder.isCapturingNow() && !shouldPause()) {
+        log.info('[Main] Resuming capture (power state: active)')
+        recorder.startCapture()
+      }
+    },
   })
 
   log.info('MemoryLane started. Screenshots will be saved to:', recorder.getScreenshotsDir())

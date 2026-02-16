@@ -19,6 +19,7 @@ extraResources:
     to: swift
     filter:
       - ocr
+      - app-watcher
   - from: src/main/processor/powershell
     to: powershell
     filter:
@@ -32,7 +33,6 @@ asarUnpack:
   - 'node_modules/sqlite-vec*/**/*'
   - 'node_modules/@img/**/*'
   - 'node_modules/onnxruntime-node/**/*'
-  - 'node_modules/active-win/**/*'
   - '**/*.node'
 
 afterSign: build/notarize.js

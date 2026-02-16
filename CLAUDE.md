@@ -106,7 +106,6 @@ This project uses several native Node.js modules that require special handling:
 - `uiohook-napi` - Keyboard/mouse monitoring
 - `sharp` - Image processing
 - `better-sqlite3` - SQLite database
-- `active-win` - Active window detection
 - `onnxruntime-node` - ML inference
 
 These are:

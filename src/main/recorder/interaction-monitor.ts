@@ -1,8 +1,8 @@
 import { screen } from 'electron'
 import { uIOhook, UiohookMouseEvent, UiohookWheelEvent } from 'uiohook-napi'
-import activeWin from 'active-win'
 import { INTERACTION_MONITOR_CONFIG } from '@constants'
 import { InteractionContext } from '../../shared/types'
+import { startAppWatcher, stopAppWatcher, AppWatcherEvent } from './app-watcher'
 import log from '../logger'
 
 // State
@@ -23,14 +23,9 @@ let scrollSessionStartTime = 0
 let lastClickTime = 0
 
 // App change state
-let appChangeIntervalId: NodeJS.Timeout | null = null
-let previousWindow: { title: string; processName: string } | null = null
-let appChangeFailureSkips = 0
+let previousWindow: NonNullable<InteractionContext['activeWindow']> | null = null
 
-// Activity-gated polling state
-let idleTimeoutId: NodeJS.Timeout | null = null
-
-// Display resolution state (updated by app-change poller, used by keyboard/scroll handlers)
+// Display resolution state (used by keyboard/scroll handlers)
 let cachedDisplayId: number | null = null
 
 /**
@@ -38,33 +33,6 @@ let cachedDisplayId: number | null = null
  */
 function getDisplayIdForPoint(x: number, y: number): number {
   return screen.getDisplayNearestPoint({ x, y }).id
-}
-
-/**
- * Start (or restart) app-change polling on user activity.
- * Automatically stops polling after APP_CHANGE_IDLE_TIMEOUT_MS of inactivity.
- */
-function markUserActivity(): void {
-  if (!isRunning || !INTERACTION_MONITOR_CONFIG.TRACK_APP_CHANGE) return
-
-  // (Re)start the idle timeout
-  if (idleTimeoutId) clearTimeout(idleTimeoutId)
-  idleTimeoutId = setTimeout(() => {
-    if (appChangeIntervalId) {
-      clearInterval(appChangeIntervalId)
-      appChangeIntervalId = null
-      log.info('[Interaction Monitor] App change polling paused (idle)')
-    }
-  }, INTERACTION_MONITOR_CONFIG.APP_CHANGE_IDLE_TIMEOUT_MS)
-
-  // Start polling if not already running
-  if (!appChangeIntervalId) {
-    log.info('[Interaction Monitor] App change polling resumed (activity)')
-    checkAppChange().catch(log.error)
-    appChangeIntervalId = setInterval(() => {
-      checkAppChange().catch(log.error)
-    }, INTERACTION_MONITOR_CONFIG.APP_CHANGE_POLL_MS)
-  }
 }
 
 // Callback for when interaction triggers a capture
@@ -76,8 +44,6 @@ const interactionCallbacks: OnInteractionCallback[] = []
  * Throttled to prevent rapid-fire captures from fast clicking
  */
 function handleMouseClick(event: UiohookMouseEvent): void {
-  markUserActivity()
-
   if (!INTERACTION_MONITOR_CONFIG.TRACK_CLICKS) {
     return
   }
@@ -114,8 +80,6 @@ function handleMouseClick(event: UiohookMouseEvent): void {
  * Tracks "typing sessions" - emits event when user pauses typing
  */
 function handleKeyboard(): void {
-  markUserActivity()
-
   if (!INTERACTION_MONITOR_CONFIG.TRACK_KEYBOARD) {
     return
   }
@@ -179,8 +143,6 @@ function handleKeyboard(): void {
  * Tracks "scroll sessions" - emits event when user pauses scrolling
  */
 function handleScroll(event: UiohookWheelEvent): void {
-  markUserActivity()
-
   if (!INTERACTION_MONITOR_CONFIG.TRACK_SCROLL) {
     return
   }
@@ -240,68 +202,74 @@ function handleScroll(event: UiohookWheelEvent): void {
 }
 
 /**
- * Check for app/window changes
- * Called periodically by interval timer
+ * Handle events from the native app-watcher process.
+ * Translates AppWatcherEvent into InteractionContext for downstream consumers.
  */
-async function checkAppChange(): Promise<void> {
-  if (!INTERACTION_MONITOR_CONFIG.TRACK_APP_CHANGE) {
+function handleAppWatcherEvent(event: AppWatcherEvent): void {
+  log.debug(
+    `[Interaction Monitor] Received AppWatcher event: type=${event.type} app=${event.app} title=${event.title}`,
+  )
+
+  if (event.type === 'ready') {
+    log.info('[Interaction Monitor] AppWatcher is ready and streaming events')
+    return
+  }
+  if (event.type === 'error') {
+    log.warn(`[Interaction Monitor] AppWatcher error: ${event.error}`)
     return
   }
 
-  if (appChangeFailureSkips > 0) {
-    appChangeFailureSkips--
+  // Both app_change and window_change map to the same InteractionContext type
+  const current: NonNullable<InteractionContext['activeWindow']> = {
+    title: event.title ?? '',
+    processName: event.app ?? '',
+    ...(event.url && { url: event.url }),
+  }
+
+  // Skip if nothing actually changed
+  if (
+    previousWindow &&
+    previousWindow.title === current.title &&
+    previousWindow.processName === current.processName
+  ) {
+    log.debug(`[Interaction Monitor] Skipping duplicate: ${current.processName} "${current.title}"`)
     return
   }
 
-  try {
-    const currentWindow = await activeWin()
+  // Update display cache from the mouse cursor position (best approximation
+  // without window bounds, which the watcher doesn't provide)
+  const cursorPoint = screen.getCursorScreenPoint()
+  cachedDisplayId = getDisplayIdForPoint(cursorPoint.x, cursorPoint.y)
 
-    if (!currentWindow) {
-      return
-    }
+  log.info(
+    `[Interaction Monitor] App changed from ${previousWindow?.processName ?? '(none)'} to ${current.processName}`,
+  )
 
-    const current = {
-      title: currentWindow.title,
-      processName: currentWindow.owner.name,
-    }
-
-    const centerX = currentWindow.bounds.x + currentWindow.bounds.width / 2
-    const centerY = currentWindow.bounds.y + currentWindow.bounds.height / 2
-    cachedDisplayId = getDisplayIdForPoint(centerX, centerY)
-
-    // Check if window has changed
-    if (
-      previousWindow &&
-      (previousWindow.title !== current.title || previousWindow.processName !== current.processName)
-    ) {
-      log.info(
-        `[Interaction Monitor] App changed from ${previousWindow.processName} to ${current.processName}`,
-      )
-
-      const context: InteractionContext = {
-        type: 'app_change',
-        timestamp: Date.now(),
-        displayId: cachedDisplayId,
-        activeWindow: current,
-        previousWindow: previousWindow,
-      }
-
-      // Notify all callbacks
-      interactionCallbacks.forEach((callback) => {
-        try {
-          callback(context)
-        } catch (error) {
-          log.error('Error in interaction callback:', error)
-        }
-      })
-    }
-
-    // Update previous window
-    previousWindow = current
-  } catch (error) {
-    appChangeFailureSkips = INTERACTION_MONITOR_CONFIG.APP_CHANGE_FAILURE_SKIPS_N_POLLS_AFTER_ERROR
-    log.warn('[Interaction Monitor] Error checking active window, pausing for 3 polls:', error)
+  const context: InteractionContext = {
+    type: 'app_change',
+    timestamp: event.timestamp,
+    displayId: cachedDisplayId,
+    activeWindow: current,
+    previousWindow: previousWindow ?? undefined,
   }
+
+  const prev = previousWindow
+  previousWindow = current
+
+  // Don't emit on the very first event (no previous to compare against)
+  if (!prev) return
+
+  // Notify all callbacks
+  log.debug(
+    `[Interaction Monitor] Dispatching app_change to ${interactionCallbacks.length} callback(s)`,
+  )
+  interactionCallbacks.forEach((callback) => {
+    try {
+      callback(context)
+    } catch (error) {
+      log.error('Error in interaction callback:', error)
+    }
+  })
 }
 
 /**
@@ -339,10 +307,10 @@ export function startInteractionMonitoring(): void {
     uIOhook.start()
     log.info('[Interaction Monitor] uiohook started successfully')
 
-    // App change polling is now activity-gated:
-    // markUserActivity() will start the interval on the first user event.
+    // Start native app-watcher process for app/window change events
     if (INTERACTION_MONITOR_CONFIG.TRACK_APP_CHANGE) {
-      log.info('[Interaction Monitor] App change polling will start on first user activity')
+      startAppWatcher(handleAppWatcherEvent)
+      log.info('[Interaction Monitor] App watcher started')
     }
   } catch (error) {
     log.error('[Interaction Monitor] Failed to start:', error)
@@ -372,7 +340,6 @@ export function stopInteractionMonitoring(): void {
     scrollSessionStartTime = 0
     lastClickTime = 0
     previousWindow = null
-    appChangeFailureSkips = 0
     cachedDisplayId = null
 
     // Clear any pending typing session timeout
@@ -387,17 +354,8 @@ export function stopInteractionMonitoring(): void {
       scrollSessionTimeoutId = null
     }
 
-    // Clear app change polling interval
-    if (appChangeIntervalId) {
-      clearInterval(appChangeIntervalId)
-      appChangeIntervalId = null
-    }
-
-    // Clear idle timeout
-    if (idleTimeoutId) {
-      clearTimeout(idleTimeoutId)
-      idleTimeoutId = null
-    }
+    // Stop the native app-watcher process
+    stopAppWatcher()
 
     // Stop the hook
     uIOhook.stop()

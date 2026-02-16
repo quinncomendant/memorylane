@@ -36,12 +36,14 @@ export interface InteractionContext {
   activeWindow?: {
     title: string
     processName: string
+    url?: string // Browser tab URL (Chrome, Safari, Arc, etc.)
   }
 
   // App change-specific
   previousWindow?: {
     title: string
     processName: string
+    url?: string
   }
 }
 

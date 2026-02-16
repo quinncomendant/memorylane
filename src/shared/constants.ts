@@ -14,9 +14,12 @@ export const INTERACTION_MONITOR_CONFIG = {
   CLICK_THROTTLE_MS: 1000, // Minimum interval between forwarded click events (500-5000ms)
   TYPING_SESSION_TIMEOUT_MS: 2000, // Consider typing stopped after 2s of no keys (500-5000ms)
   SCROLL_SESSION_TIMEOUT_MS: 2000, // Consider scrolling stopped after 500ms (200-2000ms)
-  APP_CHANGE_POLL_MS: 500, // Poll active window every 500ms
-  APP_CHANGE_FAILURE_SKIPS_N_POLLS_AFTER_ERROR: 10, // Number of polls to skip after an error
-  APP_CHANGE_IDLE_TIMEOUT_MS: 5000, // Stop polling after 5s of no user interaction
+}
+
+// App Watcher Configuration (native Swift subprocess for app/window change detection)
+export const APP_WATCHER_CONFIG = {
+  MAX_RESTART_RETRIES: 3, // Max automatic restarts after crashes
+  RESTART_BACKOFF_MS: 1000, // Base delay between restarts (multiplied by attempt number)
 }
 
 // Capture Rate Limiting Configuration

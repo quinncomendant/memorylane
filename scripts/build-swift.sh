@@ -13,4 +13,10 @@ swiftc -O \
   "$ROOT_DIR/src/main/processor/swift/ocr.swift" \
   -o "$OUT_DIR/ocr"
 
-echo "Swift OCR binary built successfully"
+echo "Compiling app-watcher.swift → build/swift/app-watcher"
+swiftc -O \
+  -target arm64-apple-macos13.0 \
+  "$ROOT_DIR/src/main/recorder/swift/app-watcher.swift" \
+  -o "$OUT_DIR/app-watcher"
+
+echo "Swift binaries built successfully"

@@ -25,7 +25,6 @@ export default defineConfig({
           'onnxruntime-node',
           'onnxruntime-common',
           'sharp',
-          'active-win',
         ],
       },
     },

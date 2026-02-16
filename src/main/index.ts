@@ -105,7 +105,10 @@ app.on('ready', async () => {
     managedKeyService: managedKeyService!,
   })
 
-  void managedKeyService!.tryFetchKey()
+  const keySource = apiKeyManager!.getKeySource()
+  if (keySource === 'none' || keySource === 'managed') {
+    void managedKeyService!.tryFetchKey()
+  }
 
   openMainWindow()
 

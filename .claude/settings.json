@@ -1,4 +1,5 @@
 {
+  "teammateMode": "tmux",
   "permissions": {
     "deny": ["Read(./.entire/metadata/**)"]
   }

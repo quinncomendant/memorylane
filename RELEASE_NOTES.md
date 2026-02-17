@@ -1,18 +1,11 @@
-# MemoryLane v0.9.0
+# MemoryLane v0.9.1
 
 MemoryLane is a macOS system tray app that captures your screen activity, processes it with OCR and AI summarization, and makes it searchable through an MCP server — giving AI assistants like Claude and Cursor memory of what you've been working on.
 
 ## What's Changed
 
-- **Activity-based processing** — screenshots are now grouped into coherent activity sessions via a new ActivityManager, replacing individual screenshot processing with richer, context-aware summaries
-- **Pure event-driven capture** — removed periodic screenshots entirely; capture is now triggered exclusively by user interactions (clicks, typing, scrolling, app switches) and visual changes
-- **Click capture trigger** — mouse clicks now trigger screenshots, improving activity transition detection
-- **Improved OCR pipeline** — polished OCR firing sequences and Swift sidecar for more accurate text extraction
-- **Better summarization prompts** — refined prompts and removed underperforming models for higher-quality activity summaries
-- **Processing queue** — new serial processing queue ensures ordered, reliable screenshot processing
-- **MCP response improvements** — enhanced formatting and richer context in `search_context` and `browse_timeline` tool responses
-- **Data migration** — existing screenshot data is automatically migrated into the new activity-based schema on upgrade
-- **Bug fixes** — resolved race conditions in processing, cold start issues, and Transformers.js compatibility problems
+- **Fixed model cache path for packaged builds** — the Transformers.js model cache now uses an absolute path under the app's data directory, fixing an ENOENT crash when macOS launches the packaged app with `cwd=/`
+- **More accurate OCR** — switched the macOS Vision recognition mode from `fast` to `accurate` for higher-quality text extraction
 
 ## Features
 
@@ -60,4 +53,4 @@ After launching:
 
 ## Full Changelog
 
-https://github.com/deusXmachina-dev/memorylane/compare/v0.8.0...v0.9.0
+https://github.com/deusXmachina-dev/memorylane/compare/v0.9.0...v0.9.1

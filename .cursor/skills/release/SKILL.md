@@ -78,11 +78,13 @@ npm run make:mac
 ```
 
 The build produces both a ZIP and a DMG in `dist/` with **stable filenames**
-(no version number). Verify they exist:
+(no version number). Verify they exist and `latest-mac.yml` contains the correct
+version:
 
 ```bash
 ls dist/MemoryLane-arm64-mac.zip
 ls dist/MemoryLane-arm64-mac.dmg
+cat dist/latest-mac.yml  # version field must match the new release
 ```
 
 These stable names are configured via `artifactName` in `electron-builder.yml`.
@@ -130,5 +132,6 @@ Before finishing, verify:
 - [ ] Tag is pushed to origin
 - [ ] `dist/MemoryLane-arm64-mac.zip` exists
 - [ ] `dist/MemoryLane-arm64-mac.dmg` exists
+- [ ] `dist/latest-mac.yml` contains the correct version (not stale from a previous build)
 - [ ] Notarization verified (`spctl --assess` reports `accepted`)
 - [ ] GitHub release is published with ZIP, DMG, and `latest-mac.yml` attached

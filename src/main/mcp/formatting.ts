@@ -9,25 +9,11 @@ export function formatActivityLine(activity: {
   endTimestamp: number
   appName?: string | null
   summary?: string | null
-  durationMs?: number | null
-  screenshotCount?: number | null
 }): string {
   const timeStr = new Date(activity.startTimestamp).toLocaleString()
   const appInfo = activity.appName ? ` [${activity.appName}]` : ''
   const summary = activity.summary || '(no summary)'
-  const duration = activity.durationMs ? ` (${formatDuration(activity.durationMs)})` : ''
-  const shots = activity.screenshotCount ? `, ${activity.screenshotCount} screenshots` : ''
-  return `- ${activity.id} | ${timeStr}${appInfo}${duration}${shots} | ${summary}`
-}
-
-function formatDuration(ms: number): string {
-  const seconds = Math.floor(ms / 1000)
-  const minutes = Math.floor(seconds / 60)
-  const hours = Math.floor(minutes / 60)
-
-  if (hours > 0) return `${hours}h ${minutes % 60}m`
-  if (minutes > 0) return `${minutes}m ${seconds % 60}s`
-  return `${seconds}s`
+  return `- ${activity.id} | ${timeStr}${appInfo} | ${summary}`
 }
 
 /**
@@ -38,8 +24,6 @@ export interface TimelineEntry {
   timestamp: number
   appName: string
   summary: string
-  durationMs?: number
-  screenshotCount?: number
 }
 
 /**
@@ -51,8 +35,6 @@ export function activityToTimelineEntry(activity: ActivitySummary): TimelineEntr
     timestamp: activity.startTimestamp,
     appName: activity.appName ?? '',
     summary: activity.summary ?? '',
-    durationMs: activity.durationMs,
-    screenshotCount: activity.screenshotCount,
   }
 }
 
@@ -63,9 +45,7 @@ export function formatTimelineEntry(entry: TimelineEntry): string {
   const timeStr = new Date(entry.timestamp).toLocaleString()
   const appInfo = entry.appName ? ` [${entry.appName}]` : ''
   const summary = entry.summary || '(no summary)'
-  const duration = entry.durationMs ? ` (${formatDuration(entry.durationMs)})` : ''
-  const shots = entry.screenshotCount ? `, ${entry.screenshotCount} screenshots` : ''
-  return `- ${entry.id} | ${timeStr}${appInfo}${duration}${shots} | ${summary}`
+  return `- ${entry.id} | ${timeStr}${appInfo} | ${summary}`
 }
 
 /**

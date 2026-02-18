@@ -8,11 +8,8 @@
 
 import { v4 as uuidv4 } from 'uuid'
 import { Activity, ActivityScreenshot, InteractionContext } from '../../shared/types'
-import {
-  ACTIVITY_CONFIG,
-  BROWSER_BUNDLE_IDS,
-  TRANSIENT_APP_BUNDLE_IDS,
-} from '../../shared/constants'
+import { ACTIVITY_CONFIG } from '../../shared/constants'
+import { isBrowserApp, isTransientApp } from '../../shared/app-utils'
 import { extractTld, isTldChange } from '../recorder/tld-utils'
 import log from '../logger'
 
@@ -105,11 +102,12 @@ export class ActivityManager {
     const newApp = event.activeWindow
     if (!newApp) return
 
-    const newBundleId = newApp.bundleId
+    console.log('newApp', newApp)
+
     const newProcessName = newApp.processName
 
     // Skip transient apps (Spotlight, notification center, etc.)
-    if (newBundleId && TRANSIENT_APP_BUNDLE_IDS.has(newBundleId)) {
+    if (isTransientApp(newApp)) {
       log.info(
         `[ActivityManager] Transient app detected (${newProcessName}), keeping current activity`,
       )
@@ -173,7 +171,7 @@ export class ActivityManager {
     }
 
     // Same browser but different TLD → activity boundary
-    if (newBundleId && BROWSER_BUNDLE_IDS.has(newBundleId)) {
+    if (isBrowserApp(newApp)) {
       if (isTldChange(this.currentActivity.url, newApp.url)) {
         log.info('[ActivityManager] Browser TLD change detected — new activity boundary')
         return true

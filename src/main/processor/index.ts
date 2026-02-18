@@ -4,7 +4,6 @@ import { EmbeddingService } from './embedding'
 import { StorageService } from './storage'
 import { Activity } from '../../shared/types'
 import { SemanticClassifierService } from './semantic-classifier'
-import { buildChronologicalTimeline } from './activity-timeline'
 import { ACTIVITY_CONFIG, OCR_CONFIG } from '@constants'
 import log from '../logger'
 
@@ -67,29 +66,20 @@ export class ActivityProcessor {
       const embeddingText = summary || ocrTexts.join(' ')
       const vector = await this.embeddingService.generateEmbedding(embeddingText)
 
-      // 5. Build interaction timeline for storage (same format as the LLM prompt)
-      const selectedPaths = selectedScreenshots.map((s) => s.filepath)
-      const interactionSummary = buildChronologicalTimeline(activity, selectedPaths)
-
-      // 6. Store as activity
-      const durationMs = (activity.endTimestamp ?? Date.now()) - activity.startTimestamp
+      // 5. Store as activity
       await this.storageService.addActivity({
         id: activity.id,
         startTimestamp: activity.startTimestamp,
         endTimestamp: activity.endTimestamp ?? Date.now(),
         appName: activity.appName,
-        bundleId: activity.bundleId ?? '',
         windowTitle: activity.windowTitle,
-        url: activity.url ?? null,
         tld: activity.tld ?? null,
         summary,
         ocrText: ocrTexts.join('\n---\n'),
-        screenshotCount: screenshots.length,
-        interactionSummary,
-        durationMs,
         vector,
       })
 
+      const durationMs = (activity.endTimestamp ?? Date.now()) - activity.startTimestamp
       log.info(`[ActivityProcessor] Stored activity ${id} (${activity.appName}, ${durationMs}ms)`)
 
       // 7. Delete all screenshot files

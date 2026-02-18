@@ -53,15 +53,10 @@ export interface StoredActivity extends Record<string, unknown> {
   startTimestamp: number
   endTimestamp: number
   appName: string
-  bundleId: string
   windowTitle: string
-  url: string | null
   tld: string | null
   summary: string
   ocrText: string
-  screenshotCount: number
-  interactionSummary: string
-  durationMs: number
   vector: number[]
 }
 
@@ -72,8 +67,6 @@ export interface ActivitySummary {
   endTimestamp: number
   appName: string
   summary: string
-  durationMs: number
-  screenshotCount: number
 }
 
 /** sqlite-vec hard limit for the k parameter in knn queries. */
@@ -147,15 +140,10 @@ export class StorageService {
           start_timestamp INTEGER NOT NULL,
           end_timestamp INTEGER NOT NULL,
           app_name TEXT NOT NULL DEFAULT '',
-          bundle_id TEXT NOT NULL DEFAULT '',
           window_title TEXT NOT NULL DEFAULT '',
-          url TEXT DEFAULT NULL,
           tld TEXT DEFAULT NULL,
           summary TEXT NOT NULL DEFAULT '',
           ocr_text TEXT NOT NULL DEFAULT '',
-          screenshot_count INTEGER NOT NULL DEFAULT 0,
-          interaction_summary TEXT NOT NULL DEFAULT '',
-          duration_ms INTEGER NOT NULL DEFAULT 0,
           vector BLOB
         )
       `)
@@ -273,22 +261,17 @@ export class StorageService {
 
     const insert = this.db.transaction(() => {
       this.db!.prepare(
-        `INSERT INTO activities (id, start_timestamp, end_timestamp, app_name, bundle_id, window_title, url, tld, summary, ocr_text, screenshot_count, interaction_summary, duration_ms, vector)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        `INSERT INTO activities (id, start_timestamp, end_timestamp, app_name, window_title, tld, summary, ocr_text, vector)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       ).run(
         activity.id,
         activity.startTimestamp,
         activity.endTimestamp,
         activity.appName,
-        activity.bundleId,
         activity.windowTitle,
-        activity.url,
         activity.tld,
         activity.summary,
         activity.ocrText,
-        activity.screenshotCount,
-        activity.interactionSummary,
-        activity.durationMs,
         vectorBlob,
       )
 
@@ -324,7 +307,7 @@ export class StorageService {
 
     const rows = this.db
       .prepare(
-        `SELECT a.id, a.start_timestamp, a.end_timestamp, a.app_name, a.summary, a.screenshot_count, a.duration_ms
+        `SELECT a.id, a.start_timestamp, a.end_timestamp, a.app_name, a.summary
          FROM activities_fts fts
          JOIN activities a ON a.rowid = fts.rowid
          WHERE activities_fts MATCH ?
@@ -365,7 +348,7 @@ export class StorageService {
       const effectiveLimit = Math.min(limit, SQLITE_VEC_KNN_MAX)
       const rows = this.db
         .prepare(
-          `SELECT a.id, a.start_timestamp, a.end_timestamp, a.app_name, a.summary, a.screenshot_count, a.duration_ms
+          `SELECT a.id, a.start_timestamp, a.end_timestamp, a.app_name, a.summary
            FROM (
              SELECT id, distance
              FROM activities_vec
@@ -385,7 +368,7 @@ export class StorageService {
 
     const rows = this.db
       .prepare(
-        `SELECT a.id, a.start_timestamp, a.end_timestamp, a.app_name, a.summary, a.screenshot_count, a.duration_ms
+        `SELECT a.id, a.start_timestamp, a.end_timestamp, a.app_name, a.summary
          FROM (
            SELECT id, distance
            FROM activities_vec
@@ -443,7 +426,7 @@ export class StorageService {
 
     const rows = this.db
       .prepare(
-        `SELECT id, start_timestamp, end_timestamp, app_name, summary, screenshot_count, duration_ms
+        `SELECT id, start_timestamp, end_timestamp, app_name, summary
          FROM activities
          ${whereClause}
          ORDER BY start_timestamp ASC`,
@@ -465,7 +448,7 @@ export class StorageService {
     const placeholders = ids.map(() => '?').join(', ')
     const rows = this.db
       .prepare(
-        `SELECT id, start_timestamp, end_timestamp, app_name, bundle_id, window_title, url, tld, summary, ocr_text, screenshot_count, interaction_summary, duration_ms, vector
+        `SELECT id, start_timestamp, end_timestamp, app_name, window_title, tld, summary, ocr_text, vector
          FROM activities
          WHERE id IN (${placeholders})`,
       )
@@ -510,10 +493,8 @@ export class StorageService {
       db.transaction(() => {
         db.prepare(
           `INSERT OR IGNORE INTO activities
-             (id, start_timestamp, end_timestamp, app_name, bundle_id, window_title,
-              url, tld, summary, ocr_text, screenshot_count, interaction_summary, duration_ms, vector)
-           SELECT id, timestamp, timestamp, appName, '', '',
-              NULL, NULL, summary, text, 0, '', 0, vector
+             (id, start_timestamp, end_timestamp, app_name, window_title, tld, summary, ocr_text, vector)
+           SELECT id, timestamp, timestamp, appName, '', NULL, summary, text, vector
            FROM context_events`,
         ).run()
 
@@ -568,8 +549,6 @@ export class StorageService {
       endTimestamp: row.end_timestamp as number,
       appName: row.app_name as string,
       summary: row.summary as string,
-      durationMs: row.duration_ms as number,
-      screenshotCount: row.screenshot_count as number,
     }
   }
 
@@ -579,15 +558,10 @@ export class StorageService {
       startTimestamp: row.start_timestamp as number,
       endTimestamp: row.end_timestamp as number,
       appName: row.app_name as string,
-      bundleId: row.bundle_id as string,
       windowTitle: row.window_title as string,
-      url: (row.url as string) ?? null,
       tld: (row.tld as string) ?? null,
       summary: row.summary as string,
       ocrText: row.ocr_text as string,
-      screenshotCount: row.screenshot_count as number,
-      interactionSummary: row.interaction_summary as string,
-      durationMs: row.duration_ms as number,
       vector: row.vector ? this.blobToVector(row.vector as Buffer) : [],
     }
   }

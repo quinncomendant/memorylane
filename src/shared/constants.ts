@@ -51,33 +51,6 @@ export const OCR_CONFIG = {
   RECOGNITION_MODE: 'accurate' as 'fast' | 'accurate', // macOS Vision recognition level
 }
 
-// Browser bundle IDs (apps where TLD changes create activity boundaries)
-export const BROWSER_BUNDLE_IDS = new Set([
-  'com.apple.Safari',
-  'com.google.Chrome',
-  'com.google.Chrome.canary',
-  'org.chromium.Chromium',
-  'com.brave.Browser',
-  'com.microsoft.edgemac',
-  'com.operasoftware.Opera',
-  'com.vivaldi.Vivaldi',
-  'company.thebrowser.Browser', // Arc
-  'org.mozilla.firefox',
-  'org.mozilla.firefoxdeveloperedition',
-  'com.sigmaos.sigmaos',
-  'org.webkit.MiniBrowser',
-])
-
-// Transient apps that shouldn't end the current activity (brief overlays)
-export const TRANSIENT_APP_BUNDLE_IDS = new Set([
-  'com.apple.Spotlight',
-  'com.apple.notificationcenterui',
-  'com.apple.controlcenter',
-  'com.apple.screencaptureui',
-  'com.apple.ScreenSaver.Engine',
-  'com.apple.loginwindow',
-])
-
 // Managed Key / Subscription Configuration
 export const MANAGED_KEY_CONFIG = {
   BACKEND_URL:

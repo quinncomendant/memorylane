@@ -21,15 +21,10 @@ const createStoredActivity = (
   startTimestamp: overrides.startTimestamp ?? Date.now(),
   endTimestamp: overrides.endTimestamp ?? Date.now() + 60000,
   appName: overrides.appName ?? 'TestApp',
-  bundleId: overrides.bundleId ?? 'com.test.app',
   windowTitle: overrides.windowTitle ?? 'Test Window',
-  url: overrides.url ?? null,
   tld: overrides.tld ?? null,
   summary: overrides.summary ?? 'Test activity summary',
   ocrText: overrides.ocrText ?? 'Sample OCR text',
-  screenshotCount: overrides.screenshotCount ?? 1,
-  interactionSummary: overrides.interactionSummary ?? 'clicks: 1',
-  durationMs: overrides.durationMs ?? 60000,
   vector: overrides.vector ?? [0.1, 0.2, 0.3],
 })
 
@@ -187,7 +182,6 @@ describe('StorageService', () => {
       expect(results.length).toBe(1)
       expect(results[0]).toHaveProperty('id')
       expect(results[0]).toHaveProperty('summary')
-      expect(results[0]).toHaveProperty('durationMs')
       expect(results[0]).not.toHaveProperty('ocrText')
       expect(results[0]).not.toHaveProperty('vector')
     })
@@ -432,7 +426,6 @@ describe('StorageService', () => {
       expect(results.length).toBe(1)
       expect(results[0]).toHaveProperty('id')
       expect(results[0]).toHaveProperty('summary')
-      expect(results[0]).toHaveProperty('durationMs')
       expect(results[0]).not.toHaveProperty('ocrText')
       expect(results[0]).not.toHaveProperty('vector')
     })
@@ -569,13 +562,8 @@ describe('context_events migration', () => {
     expect(row.appName).toBe('Terminal')
     expect(row.ocrText).toBe('hello world')
     expect(row.summary).toBe('greeting')
-    expect(row.bundleId).toBe('')
     expect(row.windowTitle).toBe('')
-    expect(row.url).toBeNull()
     expect(row.tld).toBeNull()
-    expect(row.screenshotCount).toBe(0)
-    expect(row.interactionSummary).toBe('')
-    expect(row.durationMs).toBe(0)
     expect(row.vector[0]).toBeCloseTo(0.1)
 
     await storage.close()

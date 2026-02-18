@@ -425,12 +425,8 @@ async function handleGetActivityDetails(
         const timeStr = new Date(a.startTimestamp).toLocaleString()
         const endTimeStr = new Date(a.endTimestamp).toLocaleString()
         const appInfo = a.appName ? ` [${a.appName}]` : ''
-        const durationSec = Math.round(a.durationMs / 1000)
         const summaryLine = a.summary ? `\nSummary: ${a.summary}` : ''
-        const interactionLine = a.interactionSummary
-          ? `\nInteractions: ${a.interactionSummary}`
-          : ''
-        return `ID: ${a.id}\n[${timeStr} → ${endTimeStr}]${appInfo} (${durationSec}s, ${a.screenshotCount} screenshots)${summaryLine}${interactionLine}\nOCR: ${a.ocrText}`
+        return `ID: ${a.id}\n[${timeStr} → ${endTimeStr}]${appInfo}${summaryLine}\nOCR: ${a.ocrText}`
       })
       .join('\n\n---\n\n')
 

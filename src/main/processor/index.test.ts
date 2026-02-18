@@ -114,7 +114,6 @@ describe('ActivityProcessor', () => {
         windowTitle: 'index.ts',
         summary: 'User edited index.ts in VS Code',
         ocrText: 'Detected Text\n---\nDetected Text',
-        screenshotCount: 2,
         vector: [0.1, 0.2, 0.3],
       }),
     )

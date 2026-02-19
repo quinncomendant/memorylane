@@ -5,6 +5,7 @@ import * as path from 'path'
 import { getDefaultDbPath } from '../paths'
 import { SearchFilters } from '../../shared/types'
 import log from '../logger'
+import { ensureMigrationsTable, runMigrations } from './migrator'
 
 /**
  * Loads the sqlite-vec extension into the given database.
@@ -82,10 +83,6 @@ function sanitizeFtsQuery(query: string): string {
   return tokens.map((t) => `"${t.replace(/"/g, '""')}"`).join(' ')
 }
 
-interface StorageOptions {
-  readonly vectorDimensions?: number
-}
-
 interface CountRow {
   readonly count: number
 }
@@ -98,11 +95,9 @@ interface DateRangeRow {
 export class StorageService {
   private dbPath: string
   private db: Database.Database | null = null
-  private readonly vectorDimensions: number
 
-  constructor(dbPath: string, options?: StorageOptions) {
+  constructor(dbPath: string) {
     this.dbPath = dbPath
-    this.vectorDimensions = options?.vectorDimensions ?? 384
   }
 
   /**
@@ -113,7 +108,7 @@ export class StorageService {
   }
 
   /**
-   * Initializes the SQLite database, creates tables and indexes.
+   * Initializes the SQLite database and runs pending migrations.
    * Only sets this.db after all setup steps succeed so that a partial
    * failure does not leave the instance in an inconsistent state.
    */
@@ -133,50 +128,8 @@ export class StorageService {
 
       loadSqliteVecExtension(db)
 
-      // Activities table (app-switch-driven activity windows)
-      db.exec(`
-        CREATE TABLE IF NOT EXISTS activities (
-          id TEXT PRIMARY KEY,
-          start_timestamp INTEGER NOT NULL,
-          end_timestamp INTEGER NOT NULL,
-          app_name TEXT NOT NULL DEFAULT '',
-          window_title TEXT NOT NULL DEFAULT '',
-          tld TEXT DEFAULT NULL,
-          summary TEXT NOT NULL DEFAULT '',
-          ocr_text TEXT NOT NULL DEFAULT '',
-          vector BLOB
-        )
-      `)
-
-      db.exec(
-        'CREATE INDEX IF NOT EXISTS idx_activities_start_timestamp ON activities(start_timestamp)',
-      )
-      db.exec('CREATE INDEX IF NOT EXISTS idx_activities_app_name ON activities(app_name)')
-
-      db.exec(`
-        CREATE VIRTUAL TABLE IF NOT EXISTS activities_fts USING fts5(
-          summary,
-          ocr_text,
-          content='activities',
-          content_rowid='rowid'
-        )
-      `)
-
-      db.exec(`
-        CREATE TRIGGER IF NOT EXISTS activities_ai AFTER INSERT ON activities BEGIN
-          INSERT INTO activities_fts(rowid, summary, ocr_text)
-            VALUES (new.rowid, new.summary, new.ocr_text);
-        END
-      `)
-
-      db.exec(`
-        CREATE VIRTUAL TABLE IF NOT EXISTS activities_vec USING vec0(
-          id TEXT PRIMARY KEY,
-          embedding float[${this.vectorDimensions}]
-        )
-      `)
-
-      this.migrateContextEvents(db)
+      ensureMigrationsTable(db)
+      runMigrations(db)
 
       this.db = db
       log.info('SQLite database initialized successfully')
@@ -472,55 +425,6 @@ export class StorageService {
   // ---------------------------------------------------------------------------
   // Private helpers
   // ---------------------------------------------------------------------------
-
-  /**
-   * One-time migration: copies rows from the legacy `context_events` table
-   * into `activities` / `activities_vec`, then drops all legacy artifacts.
-   * No-op on fresh installs where the table never existed.
-   */
-  private migrateContextEvents(db: Database.Database): void {
-    const tableExists = db
-      .prepare("SELECT 1 FROM sqlite_master WHERE type='table' AND name='context_events'")
-      .get()
-    if (!tableExists) return
-
-    log.info('Migrating legacy context_events data into activities…')
-
-    const rowCount = (db.prepare('SELECT COUNT(*) as count FROM context_events').get() as CountRow)
-      .count
-
-    if (rowCount > 0) {
-      db.transaction(() => {
-        db.prepare(
-          `INSERT OR IGNORE INTO activities
-             (id, start_timestamp, end_timestamp, app_name, window_title, tld, summary, ocr_text, vector)
-           SELECT id, timestamp, timestamp, appName, '', NULL, summary, text, vector
-           FROM context_events`,
-        ).run()
-
-        db.prepare(
-          `INSERT OR IGNORE INTO activities_vec (id, embedding)
-           SELECT id, vector FROM context_events WHERE vector IS NOT NULL`,
-        ).run()
-      })()
-    }
-
-    // Drop legacy artifacts (idempotent — IF EXISTS where supported,
-    // and virtual/trigger drops are silent if already gone)
-    const drops = [
-      'DROP TRIGGER IF EXISTS context_events_ai',
-      'DROP TABLE IF EXISTS context_events_fts',
-      'DROP TABLE IF EXISTS context_events_vec',
-      'DROP INDEX IF EXISTS idx_context_events_timestamp',
-      'DROP INDEX IF EXISTS idx_context_events_appName',
-      'DROP TABLE IF EXISTS context_events',
-    ]
-    for (const sql of drops) {
-      db.exec(sql)
-    }
-
-    log.info(`Migrated ${rowCount} legacy context_events rows and dropped legacy tables`)
-  }
 
   private vectorToBlob(vector: number[]): Buffer {
     const float32 = new Float32Array(vector)

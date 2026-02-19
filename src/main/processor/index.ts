@@ -1,7 +1,7 @@
 import * as fs from 'fs'
 import { extractText } from './ocr'
 import { EmbeddingService } from './embedding'
-import { StorageService } from './storage'
+import { StorageService } from '../storage'
 import { Activity } from '../../shared/types'
 import { SemanticClassifierService } from './semantic-classifier'
 import { ACTIVITY_CONFIG, OCR_CONFIG } from '@constants'

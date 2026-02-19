@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { ActivityProcessor } from './index'
 import { EmbeddingService } from './embedding'
-import { StorageService } from './storage'
+import { StorageService } from '../storage'
 import { SemanticClassifierService } from './semantic-classifier'
 import * as fs from 'fs'
 import * as ocr from './ocr'

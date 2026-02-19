@@ -1,9 +1,20 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest'
 import Database from 'better-sqlite3'
 import * as sqliteVec from 'sqlite-vec'
-import { StorageService, StoredActivity } from './storage'
+import { StorageService, StoredActivity } from './index'
+import { getMigrationStatus, ensureMigrationsTable, runMigrations } from './migrator'
+import { migration as migration0001 } from './migrations/0001_initial_schema'
+import { migration as migration0002 } from './migrations/0002_migrate_context_events'
 import * as path from 'path'
 import * as fs from 'fs'
+
+/**
+ * Creates a 384-element vector padded with zeros.
+ * The leading values can be specified; the rest default to 0.
+ */
+function v(...vals: number[]): number[] {
+  return Object.assign(new Array(384).fill(0), vals)
+}
 
 const deleteDbFiles = (dbPath: string): void => {
   for (const suffix of ['', '-wal', '-shm']) {
@@ -25,17 +36,16 @@ const createStoredActivity = (
   tld: overrides.tld ?? null,
   summary: overrides.summary ?? 'Test activity summary',
   ocrText: overrides.ocrText ?? 'Sample OCR text',
-  vector: overrides.vector ?? [0.1, 0.2, 0.3],
+  vector: overrides.vector ?? v(0.1, 0.2, 0.3),
 })
 
 describe('StorageService', () => {
   const TEST_DB_PATH = path.join(process.cwd(), 'temp_test.db')
-  const VECTOR_DIMS = 3
   let storage: StorageService
 
   beforeEach(async () => {
     deleteDbFiles(TEST_DB_PATH)
-    storage = new StorageService(TEST_DB_PATH, { vectorDimensions: VECTOR_DIMS })
+    storage = new StorageService(TEST_DB_PATH)
     await storage.init()
   })
 
@@ -52,7 +62,7 @@ describe('StorageService', () => {
       appName: 'VS Code',
       summary: 'Editing TypeScript',
       ocrText: 'function hello()',
-      vector: [0.1, 0.2, 0.3],
+      vector: v(0.1, 0.2, 0.3),
     })
 
     await storage.addActivity(activity)
@@ -62,12 +72,12 @@ describe('StorageService', () => {
     expect(retrieved[0].summary).toBe('Editing TypeScript')
     expect(retrieved[0].appName).toBe('VS Code')
     expect(retrieved[0].ocrText).toBe('function hello()')
-    expect(retrieved[0].vector.length).toBe(3)
+    expect(retrieved[0].vector.length).toBe(384)
     expect(retrieved[0].vector[0]).toBeCloseTo(0.1)
   })
 
   it('should auto-initialize when addActivity is called without prior init', async () => {
-    const autoInitStorage = new StorageService(TEST_DB_PATH, { vectorDimensions: VECTOR_DIMS })
+    const autoInitStorage = new StorageService(TEST_DB_PATH)
 
     await autoInitStorage.addActivity(
       createStoredActivity({ id: 'auto-init-1', summary: 'Auto init test' }),
@@ -190,23 +200,23 @@ describe('StorageService', () => {
   describe('searchActivitiesVectors', () => {
     it('should return results ordered by similarity', async () => {
       await storage.addActivity(
-        createStoredActivity({ id: 'vec-1', vector: [1.0, 0.0, 0.0], summary: 'First' }),
+        createStoredActivity({ id: 'vec-1', vector: v(1.0), summary: 'First' }),
       )
       await storage.addActivity(
-        createStoredActivity({ id: 'vec-2', vector: [0.9, 0.1, 0.0], summary: 'Second' }),
+        createStoredActivity({ id: 'vec-2', vector: v(0.9, 0.1), summary: 'Second' }),
       )
       await storage.addActivity(
-        createStoredActivity({ id: 'vec-3', vector: [0.0, 1.0, 0.0], summary: 'Third' }),
+        createStoredActivity({ id: 'vec-3', vector: v(0.0, 1.0), summary: 'Third' }),
       )
 
-      const results = await storage.searchActivitiesVectors([1.0, 0.0, 0.0], 10)
+      const results = await storage.searchActivitiesVectors(v(1.0), 10)
 
       expect(results.length).toBe(3)
       expect(results[0].id).toBe('vec-1')
     })
 
     it('should return empty array on empty table', async () => {
-      const results = await storage.searchActivitiesVectors([1.0, 0.0, 0.0], 10)
+      const results = await storage.searchActivitiesVectors(v(1.0), 10)
       expect(results).toEqual([])
     })
 
@@ -215,18 +225,18 @@ describe('StorageService', () => {
         createStoredActivity({
           id: 'vec-vs',
           appName: 'VS Code',
-          vector: [1.0, 0.0, 0.0],
+          vector: v(1.0),
         }),
       )
       await storage.addActivity(
         createStoredActivity({
           id: 'vec-chrome',
           appName: 'Chrome',
-          vector: [0.9, 0.1, 0.0],
+          vector: v(0.9, 0.1),
         }),
       )
 
-      const results = await storage.searchActivitiesVectors([1.0, 0.0, 0.0], 10, {
+      const results = await storage.searchActivitiesVectors(v(1.0), 10, {
         appName: 'VS Code',
       })
 
@@ -239,18 +249,18 @@ describe('StorageService', () => {
         createStoredActivity({
           id: 'vec-old',
           startTimestamp: 1000,
-          vector: [1.0, 0.0, 0.0],
+          vector: v(1.0),
         }),
       )
       await storage.addActivity(
         createStoredActivity({
           id: 'vec-new',
           startTimestamp: 5000,
-          vector: [0.9, 0.1, 0.0],
+          vector: v(0.9, 0.1),
         }),
       )
 
-      const results = await storage.searchActivitiesVectors([1.0, 0.0, 0.0], 10, {
+      const results = await storage.searchActivitiesVectors(v(1.0), 10, {
         startTime: 3000,
       })
 
@@ -264,7 +274,7 @@ describe('StorageService', () => {
           id: 'combo-1',
           startTimestamp: 1000,
           appName: 'VS Code',
-          vector: [1.0, 0.0, 0.0],
+          vector: v(1.0),
         }),
       )
       await storage.addActivity(
@@ -272,7 +282,7 @@ describe('StorageService', () => {
           id: 'combo-2',
           startTimestamp: 3000,
           appName: 'VS Code',
-          vector: [0.9, 0.1, 0.0],
+          vector: v(0.9, 0.1),
         }),
       )
       await storage.addActivity(
@@ -280,11 +290,11 @@ describe('StorageService', () => {
           id: 'combo-3',
           startTimestamp: 3000,
           appName: 'Chrome',
-          vector: [0.8, 0.2, 0.0],
+          vector: v(0.8, 0.2),
         }),
       )
 
-      const results = await storage.searchActivitiesVectors([1.0, 0.0, 0.0], 10, {
+      const results = await storage.searchActivitiesVectors(v(1.0), 10, {
         appName: 'VS Code',
         startTime: 2000,
       })
@@ -299,12 +309,12 @@ describe('StorageService', () => {
           createStoredActivity({
             id: `limit-${i}`,
             appName: 'VS Code',
-            vector: [1.0 - i * 0.1, i * 0.1, 0.0],
+            vector: v(1.0 - i * 0.1, i * 0.1),
           }),
         )
       }
 
-      const results = await storage.searchActivitiesVectors([1.0, 0.0, 0.0], 2, {
+      const results = await storage.searchActivitiesVectors(v(1.0), 2, {
         appName: 'VS Code',
       })
 
@@ -315,12 +325,12 @@ describe('StorageService', () => {
       await storage.addActivity(
         createStoredActivity({
           id: 'vec-light',
-          vector: [1.0, 0.0, 0.0],
+          vector: v(1.0),
           ocrText: 'should not appear',
         }),
       )
 
-      const results = await storage.searchActivitiesVectors([1.0, 0.0, 0.0], 10)
+      const results = await storage.searchActivitiesVectors(v(1.0), 10)
 
       expect(results.length).toBe(1)
       expect(results[0]).toHaveProperty('id')
@@ -334,11 +344,11 @@ describe('StorageService', () => {
         createStoredActivity({
           id: 'case-1',
           appName: 'VS Code',
-          vector: [1.0, 0.0, 0.0],
+          vector: v(1.0),
         }),
       )
 
-      const results = await storage.searchActivitiesVectors([1.0, 0.0, 0.0], 10, {
+      const results = await storage.searchActivitiesVectors(v(1.0), 10, {
         appName: 'vs code',
       })
 
@@ -472,7 +482,6 @@ describe('StorageService', () => {
 // ---------------------------------------------------------------------------
 
 const MIGRATION_DB_PATH = path.join(process.cwd(), 'temp_migration_test.db')
-const VECTOR_DIMS = 3
 
 /** Seed a raw SQLite database with the legacy context_events schema. */
 function seedLegacyDb(
@@ -513,7 +522,7 @@ function seedLegacyDb(
   db.exec(`
     CREATE VIRTUAL TABLE IF NOT EXISTS context_events_vec USING vec0(
       id TEXT PRIMARY KEY,
-      embedding float[${VECTOR_DIMS}]
+      embedding float[384]
     )
   `)
 
@@ -547,11 +556,11 @@ describe('context_events migration', () => {
         text: 'hello world',
         summary: 'greeting',
         appName: 'Terminal',
-        vector: [0.1, 0.2, 0.3],
+        vector: v(0.1, 0.2, 0.3),
       },
     ])
 
-    const storage = new StorageService(MIGRATION_DB_PATH, { vectorDimensions: VECTOR_DIMS })
+    const storage = new StorageService(MIGRATION_DB_PATH)
     await storage.init()
 
     const rows = await storage.getActivitiesByIds(['evt-1'])
@@ -578,11 +587,11 @@ describe('context_events migration', () => {
         text: 'TypeScript compiler',
         summary: 'compiling project',
         appName: 'Terminal',
-        vector: [0.1, 0.2, 0.3],
+        vector: v(0.1, 0.2, 0.3),
       },
     ])
 
-    const storage = new StorageService(MIGRATION_DB_PATH, { vectorDimensions: VECTOR_DIMS })
+    const storage = new StorageService(MIGRATION_DB_PATH)
     await storage.init()
 
     const results = await storage.searchActivitiesFTS('compiling', 10)
@@ -601,14 +610,14 @@ describe('context_events migration', () => {
         text: 'code review',
         summary: 'reviewing PR',
         appName: 'Chrome',
-        vector: [1.0, 0.0, 0.0],
+        vector: v(1.0),
       },
     ])
 
-    const storage = new StorageService(MIGRATION_DB_PATH, { vectorDimensions: VECTOR_DIMS })
+    const storage = new StorageService(MIGRATION_DB_PATH)
     await storage.init()
 
-    const results = await storage.searchActivitiesVectors([1.0, 0.0, 0.0], 10)
+    const results = await storage.searchActivitiesVectors(v(1.0), 10)
     expect(results.length).toBe(1)
     expect(results[0].id).toBe('vec-evt')
 
@@ -624,11 +633,11 @@ describe('context_events migration', () => {
         text: 'test',
         summary: 'test',
         appName: 'App',
-        vector: [0.1, 0.2, 0.3],
+        vector: v(0.1, 0.2, 0.3),
       },
     ])
 
-    const storage = new StorageService(MIGRATION_DB_PATH, { vectorDimensions: VECTOR_DIMS })
+    const storage = new StorageService(MIGRATION_DB_PATH)
     await storage.init()
 
     // Verify legacy tables are gone by opening a raw connection
@@ -660,7 +669,7 @@ describe('context_events migration', () => {
       },
     ])
 
-    const storage = new StorageService(MIGRATION_DB_PATH, { vectorDimensions: VECTOR_DIMS })
+    const storage = new StorageService(MIGRATION_DB_PATH)
     await storage.init()
 
     const rows = await storage.getActivitiesByIds(['null-vec'])
@@ -668,7 +677,7 @@ describe('context_events migration', () => {
     expect(rows[0].vector).toEqual([])
 
     // Vector search should return no results (no vector was inserted)
-    const vecResults = await storage.searchActivitiesVectors([1.0, 0.0, 0.0], 10)
+    const vecResults = await storage.searchActivitiesVectors(v(1.0), 10)
     expect(vecResults).toEqual([])
 
     await storage.close()
@@ -683,16 +692,16 @@ describe('context_events migration', () => {
         text: 'test',
         summary: 'test',
         appName: 'App',
-        vector: [0.1, 0.2, 0.3],
+        vector: v(0.1, 0.2, 0.3),
       },
     ])
 
-    const storage1 = new StorageService(MIGRATION_DB_PATH, { vectorDimensions: VECTOR_DIMS })
+    const storage1 = new StorageService(MIGRATION_DB_PATH)
     await storage1.init()
     await storage1.close()
 
     // Second init on same DB — context_events already dropped, should not throw
-    const storage2 = new StorageService(MIGRATION_DB_PATH, { vectorDimensions: VECTOR_DIMS })
+    const storage2 = new StorageService(MIGRATION_DB_PATH)
     await storage2.init()
 
     const rows = await storage2.getActivitiesByIds(['idem-1'])
@@ -705,7 +714,7 @@ describe('context_events migration', () => {
     deleteDbFiles(MIGRATION_DB_PATH)
     seedLegacyDb([]) // empty table
 
-    const storage = new StorageService(MIGRATION_DB_PATH, { vectorDimensions: VECTOR_DIMS })
+    const storage = new StorageService(MIGRATION_DB_PATH)
     await storage.init()
 
     const db = new Database(MIGRATION_DB_PATH)
@@ -722,7 +731,7 @@ describe('context_events migration', () => {
   it('should skip migration on fresh database (no legacy table)', async () => {
     deleteDbFiles(MIGRATION_DB_PATH)
 
-    const storage = new StorageService(MIGRATION_DB_PATH, { vectorDimensions: VECTOR_DIMS })
+    const storage = new StorageService(MIGRATION_DB_PATH)
     // Should not throw — no context_events table to migrate
     await storage.init()
 
@@ -730,5 +739,303 @@ describe('context_events migration', () => {
     expect(count).toBe(0)
 
     await storage.close()
+  })
+})
+
+// ---------------------------------------------------------------------------
+// Migration system
+// ---------------------------------------------------------------------------
+
+const SYSTEM_DB_PATH = path.join(process.cwd(), 'temp_migration_system_test.db')
+
+describe('migration system', () => {
+  afterEach(() => {
+    deleteDbFiles(SYSTEM_DB_PATH)
+  })
+
+  it('should apply all 2 migrations on a fresh database', async () => {
+    deleteDbFiles(SYSTEM_DB_PATH)
+
+    const storage = new StorageService(SYSTEM_DB_PATH)
+    await storage.init()
+    await storage.close()
+
+    const db = new Database(SYSTEM_DB_PATH)
+    const rows = db.prepare('SELECT name FROM schema_migrations ORDER BY id').all() as {
+      name: string
+    }[]
+    db.close()
+
+    expect(rows.length).toBe(2)
+    expect(rows[0].name).toBe('0001_initial_schema')
+    expect(rows[1].name).toBe('0002_migrate_context_events')
+  })
+
+  it('should not re-apply migrations on second init', async () => {
+    deleteDbFiles(SYSTEM_DB_PATH)
+
+    const storage1 = new StorageService(SYSTEM_DB_PATH)
+    await storage1.init()
+    await storage1.close()
+
+    const storage2 = new StorageService(SYSTEM_DB_PATH)
+    await storage2.init()
+    await storage2.close()
+
+    const db = new Database(SYSTEM_DB_PATH)
+    const rows = db.prepare('SELECT name FROM schema_migrations').all() as { name: string }[]
+    db.close()
+
+    // Still exactly 2 rows — no duplicates
+    expect(rows.length).toBe(2)
+  })
+
+  it('getMigrationStatus returns correct applied state after init', async () => {
+    deleteDbFiles(SYSTEM_DB_PATH)
+
+    const storage = new StorageService(SYSTEM_DB_PATH)
+    await storage.init()
+    await storage.close()
+
+    const db = new Database(SYSTEM_DB_PATH)
+    const status = getMigrationStatus(db)
+    db.close()
+
+    expect(status.length).toBe(2)
+    for (const s of status) {
+      expect(s.applied).toBe(true)
+      expect(s.appliedAt).toBeGreaterThan(0)
+    }
+  })
+
+  it('getMigrationStatus reports unapplied migrations on empty schema_migrations', async () => {
+    deleteDbFiles(SYSTEM_DB_PATH)
+
+    const db = new Database(SYSTEM_DB_PATH)
+    ensureMigrationsTable(db)
+    const status = getMigrationStatus(db)
+    db.close()
+
+    expect(status.length).toBe(2)
+    for (const s of status) {
+      expect(s.applied).toBe(false)
+      expect(s.appliedAt).toBeNull()
+    }
+  })
+
+  it('should apply pending migrations on a partially-migrated database', async () => {
+    deleteDbFiles(SYSTEM_DB_PATH)
+
+    // Manually apply only migration 0001 and record it, leaving 0002 pending
+    const rawDb = new Database(SYSTEM_DB_PATH)
+    sqliteVec.load(rawDb)
+    ensureMigrationsTable(rawDb)
+    migration0001.up(rawDb)
+    rawDb
+      .prepare('INSERT INTO schema_migrations (name, applied_at) VALUES (?, ?)')
+      .run('0001_initial_schema', Date.now())
+
+    // Seed a legacy context_events row so 0002 has something to migrate
+    rawDb.exec(`
+      CREATE TABLE context_events (
+        id TEXT PRIMARY KEY,
+        timestamp INTEGER NOT NULL,
+        text TEXT NOT NULL DEFAULT '',
+        summary TEXT NOT NULL DEFAULT '',
+        appName TEXT NOT NULL DEFAULT '',
+        vector BLOB
+      )
+    `)
+    rawDb.exec(`
+      CREATE VIRTUAL TABLE context_events_vec USING vec0(
+        id TEXT PRIMARY KEY,
+        embedding float[384]
+      )
+    `)
+    const blob = Buffer.from(new Float32Array(v(0.1, 0.2, 0.3)).buffer)
+    rawDb
+      .prepare(
+        'INSERT INTO context_events (id, timestamp, text, summary, appName, vector) VALUES (?, ?, ?, ?, ?, ?)',
+      )
+      .run('partial-1', 5000, 'ocr', 'summary', 'App', blob)
+    rawDb
+      .prepare('INSERT INTO context_events_vec (id, embedding) VALUES (?, ?)')
+      .run('partial-1', blob)
+    rawDb.close()
+
+    // StorageService.init() should apply only the pending migration 0002
+    const storage = new StorageService(SYSTEM_DB_PATH)
+    await storage.init()
+    await storage.close()
+
+    const db = new Database(SYSTEM_DB_PATH)
+    const migrationRows = db.prepare('SELECT name FROM schema_migrations ORDER BY id').all() as {
+      name: string
+    }[]
+    const activityCount = (
+      db.prepare('SELECT COUNT(*) as count FROM activities').get() as { count: number }
+    ).count
+    db.close()
+
+    expect(migrationRows.length).toBe(2)
+    expect(migrationRows[1].name).toBe('0002_migrate_context_events')
+    expect(activityCount).toBe(1)
+  })
+
+  it('should migrate legacy data and record all migrations', async () => {
+    deleteDbFiles(SYSTEM_DB_PATH)
+    // Seed a legacy DB at SYSTEM_DB_PATH
+    const legacyDb = new Database(SYSTEM_DB_PATH)
+    sqliteVec.load(legacyDb)
+    legacyDb.exec(`
+      CREATE TABLE context_events (
+        id TEXT PRIMARY KEY,
+        timestamp INTEGER NOT NULL,
+        text TEXT NOT NULL DEFAULT '',
+        summary TEXT NOT NULL DEFAULT '',
+        appName TEXT NOT NULL DEFAULT '',
+        vector BLOB
+      )
+    `)
+    legacyDb.exec(`
+      CREATE VIRTUAL TABLE context_events_vec USING vec0(
+        id TEXT PRIMARY KEY,
+        embedding float[384]
+      )
+    `)
+    const vectorBlob = Buffer.from(new Float32Array(v(0.5, 0.5)).buffer)
+    legacyDb
+      .prepare(
+        'INSERT INTO context_events (id, timestamp, text, summary, appName, vector) VALUES (?, ?, ?, ?, ?, ?)',
+      )
+      .run('sys-1', 9000, 'ocr text', 'summary here', 'App', vectorBlob)
+    legacyDb
+      .prepare('INSERT INTO context_events_vec (id, embedding) VALUES (?, ?)')
+      .run('sys-1', vectorBlob)
+    legacyDb.close()
+
+    const storage = new StorageService(SYSTEM_DB_PATH)
+    await storage.init()
+
+    const rows = await storage.getActivitiesByIds(['sys-1'])
+    expect(rows.length).toBe(1)
+    expect(rows[0].summary).toBe('summary here')
+
+    await storage.close()
+
+    const db = new Database(SYSTEM_DB_PATH)
+    const migrationRows = db.prepare('SELECT name FROM schema_migrations ORDER BY id').all() as {
+      name: string
+    }[]
+    db.close()
+
+    expect(migrationRows.length).toBe(2)
+  })
+})
+
+// ---------------------------------------------------------------------------
+// Migration idempotency — tests each migration's up() SQL directly
+// ---------------------------------------------------------------------------
+
+/** Minimal DB that mirrors what StorageService.init() sets up before migrations. */
+function makeMigrationDb(): Database.Database {
+  const db = new Database(':memory:')
+  sqliteVec.load(db)
+  ensureMigrationsTable(db)
+  return db
+}
+
+describe('migration idempotency', () => {
+  it('migration 0001 up() does not throw when called twice', () => {
+    const db = makeMigrationDb()
+    expect(() => {
+      migration0001.up(db)
+      migration0001.up(db)
+    }).not.toThrow()
+    db.close()
+  })
+
+  it('migration 0001 up() creates each schema object exactly once', () => {
+    const db = makeMigrationDb()
+    migration0001.up(db)
+    migration0001.up(db)
+
+    const count = (name: string, type: string) =>
+      (
+        db
+          .prepare(`SELECT COUNT(*) as n FROM sqlite_master WHERE type=? AND name=?`)
+          .get(type, name) as { n: number }
+      ).n
+
+    expect(count('activities', 'table')).toBe(1)
+    expect(count('activities_fts', 'table')).toBe(1)
+    expect(count('activities_vec', 'table')).toBe(1)
+    expect(count('activities_ai', 'trigger')).toBe(1)
+    expect(count('idx_activities_start_timestamp', 'index')).toBe(1)
+    expect(count('idx_activities_app_name', 'index')).toBe(1)
+    db.close()
+  })
+
+  it('migration 0002 up() does not throw when no context_events table exists', () => {
+    const db = makeMigrationDb()
+    migration0001.up(db)
+    expect(() => {
+      migration0002.up(db)
+      migration0002.up(db)
+    }).not.toThrow()
+    db.close()
+  })
+
+  it('migration 0002 up() second call is no-op after context_events is dropped', () => {
+    const db = makeMigrationDb()
+    migration0001.up(db)
+
+    db.exec(`
+      CREATE TABLE context_events (
+        id TEXT PRIMARY KEY,
+        timestamp INTEGER NOT NULL,
+        text TEXT NOT NULL DEFAULT '',
+        summary TEXT NOT NULL DEFAULT '',
+        appName TEXT NOT NULL DEFAULT '',
+        vector BLOB
+      )
+    `)
+    db.exec(`
+      CREATE VIRTUAL TABLE context_events_vec USING vec0(
+        id TEXT PRIMARY KEY,
+        embedding float[384]
+      )
+    `)
+    const blob = Buffer.from(new Float32Array(v(0.1, 0.2, 0.3)).buffer)
+    db.prepare(
+      'INSERT INTO context_events (id, timestamp, text, summary, appName, vector) VALUES (?, ?, ?, ?, ?, ?)',
+    ).run('idem-x', 1000, 'text', 'sum', 'App', blob)
+    db.prepare('INSERT INTO context_events_vec (id, embedding) VALUES (?, ?)').run('idem-x', blob)
+
+    migration0002.up(db) // migrates row, drops context_events
+
+    const countAfterFirst = (
+      db.prepare('SELECT COUNT(*) as count FROM activities').get() as { count: number }
+    ).count
+    expect(countAfterFirst).toBe(1)
+
+    // Second call: context_events is gone — must be a no-op, not an error
+    expect(() => migration0002.up(db)).not.toThrow()
+
+    const countAfterSecond = (
+      db.prepare('SELECT COUNT(*) as count FROM activities').get() as { count: number }
+    ).count
+    expect(countAfterSecond).toBe(1) // row count unchanged
+    db.close()
+  })
+
+  it('runMigrations called twice records each migration exactly once', () => {
+    const db = makeMigrationDb()
+    runMigrations(db)
+    runMigrations(db)
+
+    const rows = db.prepare('SELECT name FROM schema_migrations').all() as { name: string }[]
+    expect(rows.length).toBe(2)
+    db.close()
   })
 })

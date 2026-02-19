@@ -1,4 +1,4 @@
-import { ActivitySummary } from '../processor/storage'
+import { ActivitySummary } from '../storage'
 
 /**
  * Formats a single activity as a compact summary line with duration and screenshot count.

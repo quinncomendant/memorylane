@@ -1,0 +1,7 @@
+{
+  "bun.test.enable": false,
+  "vitest.nodeExecutable": "./node_modules/electron/dist/Electron.app/Contents/MacOS/Electron",
+  "vitest.nodeEnv": {
+    "ELECTRON_RUN_AS_NODE": "1"
+  }
+}

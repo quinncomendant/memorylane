@@ -180,7 +180,42 @@ describe('FfmpegVideoStitcher', () => {
     await promise
   })
 
-  it('rejects when less than 2 frames are provided', async () => {
+  it('creates a one-second video when only one frame is provided', async () => {
+    const childProcess = await import('child_process')
+    const tempDir = createTempDir()
+    const frameA = createFrame(tempDir, 'a.png')
+    const outputPath = path.join(tempDir, 'out.mp4')
+
+    const mockChild = createMockChildProcess()
+    vi.mocked(childProcess.spawn).mockReturnValue(
+      mockChild as unknown as ReturnType<typeof childProcess.spawn>,
+    )
+
+    const stitcher = new FfmpegVideoStitcher()
+    const promise = stitcher.stitch({
+      activityId: 'activity-single-frame',
+      frames: [{ filepath: frameA, timestamp: 1_000 }],
+      outputPath,
+    })
+
+    const [, args] = vi.mocked(childProcess.spawn).mock.calls[0]
+    const manifestContent = manifestFromSpawnArgs(args)
+    const resolvedFrame = path.resolve(frameA)
+    const fileEntries = manifestContent
+      .split('\n')
+      .filter((line) => line === `file '${resolvedFrame}'`)
+    expect(fileEntries).toHaveLength(2)
+    expect(manifestContent).toContain('duration 1.000000')
+
+    mockChild.emit('close', 0)
+    await expect(promise).resolves.toEqual({
+      videoPath: path.resolve(outputPath),
+      frameCount: 1,
+      durationMs: 1_000,
+    })
+  })
+
+  it('rejects when no frames are provided', async () => {
     const stitcher = new FfmpegVideoStitcher()
     await expect(
       stitcher.stitch({
@@ -188,7 +223,7 @@ describe('FfmpegVideoStitcher', () => {
         frames: [],
         outputPath: path.join(os.tmpdir(), 'out.mp4'),
       }),
-    ).rejects.toThrow('at least 2 frame paths')
+    ).rejects.toThrow('at least 1 frame path')
   })
 
   it('rejects when a frame path is missing', async () => {

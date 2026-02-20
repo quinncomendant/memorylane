@@ -28,8 +28,8 @@ function sortFramesByTimestamp(frames: ActivityVideoFrameInput[]): ActivityVideo
 }
 
 function assertFrames(frames: ActivityVideoFrameInput[]): void {
-  if (frames.length < 2) {
-    throw new Error('Video stitcher requires at least 2 frame paths')
+  if (frames.length < 1) {
+    throw new Error('Video stitcher requires at least 1 frame path')
   }
 
   for (const frame of frames) {

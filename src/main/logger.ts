@@ -10,9 +10,10 @@ let log: Logger
 try {
   // eslint-disable-next-line @typescript-eslint/no-require-imports
   const electronLog = require('electron-log/main')
-  const level = process.env.NODE_ENV === 'development' ? 'debug' : 'info'
+  const isDev = process.env.NODE_ENV === 'development'
+  const level = isDev ? 'debug' : 'info'
   console.log(`[Logger] Setting level to ${level}`)
-  electronLog.transports.file.level = level
+  electronLog.transports.file.level = isDev ? false : level
   electronLog.transports.console.level = level
   electronLog.transports.file.format = '[{y}-{m}-{d} {h}:{i}:{s}] [{level}] {text}'
   log = electronLog

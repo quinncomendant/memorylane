@@ -94,18 +94,16 @@ describe('DefaultActivityTransformer', () => {
       outputPath: '/output/activity-1.mp4',
     })
 
-    // OCR called once per frame
-    expect(ocr.extractText).toHaveBeenCalledTimes(3)
+    // OCR called once for the selected frame (fallback to first when < 5 frames)
+    expect(ocr.extractText).toHaveBeenCalledTimes(1)
     expect(ocr.extractText).toHaveBeenCalledWith('/screenshots/frame-0.png')
-    expect(ocr.extractText).toHaveBeenCalledWith('/screenshots/frame-1.png')
-    expect(ocr.extractText).toHaveBeenCalledWith('/screenshots/frame-2.png')
 
     // Semantic called with video path and OCR text
     expect(semantic.summarizeFromVideo).toHaveBeenCalledOnce()
     expect(semantic.summarizeFromVideo).toHaveBeenCalledWith({
       activity,
       videoPath: '/output/activity-1.mp4',
-      ocrText: 'ocr text\n---\nocr text\n---\nocr text',
+      ocrText: 'ocr text',
     })
 
     // Embedder called with the summary
@@ -121,24 +119,23 @@ describe('DefaultActivityTransformer', () => {
       windowTitle: 'Editor',
       tld: 'github.com',
       summary: 'A summary of the activity',
-      ocrText: 'ocr text\n---\nocr text\n---\nocr text',
+      ocrText: 'ocr text',
       vector: [0.1, 0.2, 0.3],
     })
   })
 
-  it('joins OCR text from multiple frames with separator', async () => {
+  it('uses the 5th screenshot from the end for OCR when there are at least 5 frames', async () => {
     const { stitcher, ocr, semantic, embedder } = makeDeps()
-    ;(ocr.extractText as ReturnType<typeof vi.fn>)
-      .mockResolvedValueOnce('Hello world')
-      .mockResolvedValueOnce('Second frame text')
-      .mockResolvedValueOnce('Third frame text')
+    ;(ocr.extractText as ReturnType<typeof vi.fn>).mockResolvedValue('Selected OCR text')
 
     const transformer = new DefaultActivityTransformer(stitcher, ocr, semantic, embedder, {
       outputDir: OUTPUT_DIR,
     })
 
-    const result = await transformer.transform(makeActivity(3))
-    expect(result.ocrText).toBe('Hello world\n---\nSecond frame text\n---\nThird frame text')
+    const result = await transformer.transform(makeActivity(7))
+    expect(ocr.extractText).toHaveBeenCalledTimes(1)
+    expect(ocr.extractText).toHaveBeenCalledWith('/screenshots/frame-2.png')
+    expect(result.ocrText).toBe('Selected OCR text')
   })
 
   it('falls back to embedding ocrText when summary is empty', async () => {
@@ -152,7 +149,7 @@ describe('DefaultActivityTransformer', () => {
     const activity = makeActivity(2)
     await transformer.transform(activity)
 
-    expect(embedder.embed).toHaveBeenCalledWith('ocr text\n---\nocr text')
+    expect(embedder.embed).toHaveBeenCalledWith('ocr text')
   })
 
   it('handles activity with no frames', async () => {

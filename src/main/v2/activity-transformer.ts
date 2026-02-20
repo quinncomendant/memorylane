@@ -12,6 +12,8 @@ export interface DefaultActivityTransformerConfig {
   outputDir: string
 }
 
+const OCR_FRAME_POSITION_FROM_END = 5
+
 export class DefaultActivityTransformer implements ActivityTransformer {
   constructor(
     private stitcher: ActivityVideoStitcher,
@@ -58,9 +60,11 @@ export class DefaultActivityTransformer implements ActivityTransformer {
 
   private async extractOcrText(activity: V2Activity): Promise<string> {
     if (activity.frames.length === 0) return ''
-    const results = await Promise.all(
-      activity.frames.map((f) => this.ocr.extractText(f.frame.filepath)),
-    )
-    return results.join('\n---\n')
+    const ocrFrame =
+      activity.frames.length >= OCR_FRAME_POSITION_FROM_END
+        ? activity.frames[activity.frames.length - OCR_FRAME_POSITION_FROM_END]
+        : activity.frames[0]
+
+    return this.ocr.extractText(ocrFrame.frame.filepath)
   }
 }

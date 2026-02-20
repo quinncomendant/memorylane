@@ -371,8 +371,8 @@ describe('ActivityProducer', () => {
     expect(activities[1].provenance.sourceWindowIds).toEqual(['chrome-docs'])
   })
 
-  it('drops no-frame and unknown-context windows', async () => {
-    const { producer, eventStream, activityStream } = createProducer()
+  it('falls back to unknown context for first window and still drops no-frame windows', async () => {
+    const { producer, frameStream, eventStream, activityStream } = createProducer()
     const activities: V2Activity[] = []
     subscriptions.push(
       activityStream.subscribe({
@@ -382,11 +382,14 @@ describe('ActivityProducer', () => {
     )
 
     await producer.start()
+    await frameStream.append(makeFrame(1_050, 0))
+
     const noContextOffset = await eventStream.append(
       makeWindow({
         id: 'unknown',
         startTimestamp: 1_000,
         endTimestamp: 1_100,
+        closedBy: 'flush',
         events: [makeEvent(1_020, 'keyboard')],
       }),
     )
@@ -410,11 +413,13 @@ describe('ActivityProducer', () => {
 
     await waitFor(
       async () => (await eventStream.getAck('test:event')) === noFrameOffset,
-      'Expected dropped windows to be acked',
+      'Expected windows to be processed and acked',
     )
     expect(await eventStream.getLowestAvailableOffset()).toBe(noFrameOffset + 1)
-    expect(activities).toHaveLength(0)
-    expect(producer.getStats().droppedUnknownContextWindows).toBe(1)
+    expect(activities).toHaveLength(1)
+    expect(activities[0].context.appName).toBe('Unknown')
+    expect(activities[0].provenance.eventWindowOffsets).toEqual([noContextOffset])
+    expect(producer.getStats().droppedUnknownContextWindows).toBe(0)
     expect(producer.getStats().droppedNoFrameWindows).toBe(1)
     expect(noContextOffset).toBeLessThan(noFrameOffset)
   })

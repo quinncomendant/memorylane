@@ -416,37 +416,36 @@ export class ActivityProducer {
   }
 
   private deriveWindowContext(events: InteractionContext[]): V2ActivityContext | null {
-    const activeWindowEvent = [...events].reverse().find((event) => event.activeWindow)
+    const recentEvents = [...events].reverse()
+    const activeWindowEvent = recentEvents.find((event) => event.activeWindow)
+    const latestDisplayId = recentEvents.find((event) => event.displayId !== undefined)?.displayId
+    const latestWindowTitle = recentEvents.find((event) => event.windowTitle)?.windowTitle
 
     if (activeWindowEvent?.activeWindow) {
       const context: V2ActivityContext = {
         appName: activeWindowEvent.activeWindow.processName,
         bundleId: activeWindowEvent.activeWindow.bundleId,
-        windowTitle:
-          activeWindowEvent.activeWindow.title ??
-          [...events].reverse().find((event) => event.windowTitle)?.windowTitle,
+        windowTitle: activeWindowEvent.activeWindow.title ?? latestWindowTitle,
         url: activeWindowEvent.activeWindow.url,
         tld: extractTld(activeWindowEvent.activeWindow.url) ?? undefined,
-        displayId:
-          [...events].reverse().find((event) => event.displayId !== undefined)?.displayId ??
-          undefined,
+        displayId: latestDisplayId ?? undefined,
       }
       this.lastKnownContext = context
       return context
     }
 
     if (this.lastKnownContext === null) {
-      return null
+      return {
+        appName: 'Unknown',
+        displayId: latestDisplayId ?? undefined,
+        windowTitle: latestWindowTitle,
+      }
     }
 
     return {
       ...this.lastKnownContext,
-      displayId:
-        [...events].reverse().find((event) => event.displayId !== undefined)?.displayId ??
-        this.lastKnownContext.displayId,
-      windowTitle:
-        [...events].reverse().find((event) => event.windowTitle)?.windowTitle ??
-        this.lastKnownContext.windowTitle,
+      displayId: latestDisplayId ?? this.lastKnownContext.displayId,
+      windowTitle: latestWindowTitle ?? this.lastKnownContext.windowTitle,
     }
   }
 

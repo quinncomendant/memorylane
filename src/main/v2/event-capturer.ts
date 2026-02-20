@@ -21,6 +21,12 @@ export class EventCapturer {
   } | null = null
 
   /**
+   * Boundary timestamp carried from the last closed window. The next opened
+   * window starts from this boundary so adjacent windows stay contiguous.
+   */
+  private nextWindowStartTimestamp: number | null = null
+
+  /**
    * Gap timer handle. Restarted on every handleEvent() call. When it fires
    * (no new event within GAP_TIMEOUT_MS), the current window closes with
    * closedBy: 'gap'. This is the primary close mechanism.
@@ -55,9 +61,11 @@ export class EventCapturer {
 
     // Lazy open: create a new window on the first event
     if (this.currentWindow === null) {
+      const startTimestamp = this.nextWindowStartTimestamp ?? event.timestamp
+      this.nextWindowStartTimestamp = null
       this.currentWindow = {
         id: uuidv4(),
-        startTimestamp: event.timestamp,
+        startTimestamp,
         events: [],
       }
       this.startMaxDurationTimer()
@@ -100,6 +108,7 @@ export class EventCapturer {
       this.maxDurationTimer = null
     }
     this.currentWindow = null
+    this.nextWindowStartTimestamp = null
   }
 
   /**
@@ -120,15 +129,18 @@ export class EventCapturer {
     }
 
     const events = this.currentWindow.events
+    const lastEventTimestamp = events[events.length - 1].timestamp
+    const endTimestamp = Math.max(this.currentWindow.startTimestamp, lastEventTimestamp)
     const window: EventWindow = {
       id: this.currentWindow.id,
       startTimestamp: this.currentWindow.startTimestamp,
-      endTimestamp: events[events.length - 1].timestamp,
+      endTimestamp,
       events,
       closedBy: reason,
     }
 
     this.currentWindow = null
+    this.nextWindowStartTimestamp = endTimestamp
 
     log.info(
       `[EventCapturer] Window closed (${reason}): ${window.events.length} events, ` +

@@ -273,7 +273,7 @@ describe('EventCapturer', () => {
 
     expect(windows).toHaveLength(2)
     expect(windows[1].startTimestamp).toBe(12000)
-    expect(windows[1].endTimestamp).toBe(12000)
+    expect(windows[1].endTimestamp).toBe(12100)
     expect(windows[1].endTimestamp - windows[1].startTimestamp).toBeGreaterThanOrEqual(0)
   })
 

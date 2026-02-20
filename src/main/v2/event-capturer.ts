@@ -4,8 +4,26 @@ import { EventWindow, InteractionContext } from '../../shared/types'
 import log from '../logger'
 import type { DurableStream } from './streams/stream'
 
+interface PendingWindow {
+  id: string
+  startTimestamp: number
+  events: InteractionContext[]
+  closedBy: EventWindow['closedBy']
+  boundaryTimestamp: number
+  includeBoundaryTimestamp: boolean
+  finalizeTimer: NodeJS.Timeout | null
+}
+
+interface CloseWindowOptions {
+  boundaryTimestamp?: number
+  includeBoundaryTimestamp?: boolean
+  nextWindowStartTimestamp?: number
+  waitForLateEvents?: boolean
+}
+
 export class EventCapturer {
   private readonly eventStream: DurableStream<EventWindow>
+  private readonly lateEventGraceMs: number
 
   private appendChain: Promise<void> = Promise.resolve()
 
@@ -25,6 +43,7 @@ export class EventCapturer {
    * window starts from this boundary so adjacent windows stay contiguous.
    */
   private nextWindowStartTimestamp: number | null = null
+  private pendingWindows: PendingWindow[] = []
 
   /**
    * Gap timer handle. Restarted on every handleEvent() call. When it fires
@@ -42,6 +61,7 @@ export class EventCapturer {
 
   constructor(eventStream: DurableStream<EventWindow>) {
     this.eventStream = eventStream
+    this.lateEventGraceMs = EVENT_CAPTURER_CONFIG.LATE_EVENT_GRACE_MS ?? 0
   }
 
   /**
@@ -56,7 +76,16 @@ export class EventCapturer {
   handleEvent(event: InteractionContext): void {
     // App change splits the current window before opening a new one
     if (event.type === 'app_change' && this.currentWindow !== null) {
-      this.closeWindow('app_change')
+      this.closeWindow('app_change', {
+        boundaryTimestamp: event.timestamp,
+        includeBoundaryTimestamp: false,
+      })
+    }
+
+    // Route late debounced events into recently closed windows when they
+    // occurred before that window's close boundary.
+    if (event.type !== 'app_change' && this.tryAttachToPendingWindow(event)) {
+      return
     }
 
     // Lazy open: create a new window on the first event
@@ -82,15 +111,27 @@ export class EventCapturer {
    */
   flush(): void {
     if (this.currentWindow === null) return
-    this.closeWindow('flush')
+    this.closeWindow('flush', {
+      waitForLateEvents: false,
+      boundaryTimestamp: Date.now(),
+    })
   }
 
   async waitForIdle(): Promise<void> {
-    await this.appendChain
+    let idle = false
+    while (!idle) {
+      const chain = this.appendChain
+      await chain
+      idle = this.pendingWindows.length === 0 && chain === this.appendChain
+      if (!idle) {
+        await new Promise((resolve) => setTimeout(resolve, 5))
+      }
+    }
   }
 
   async flushAndWait(): Promise<void> {
     this.flush()
+    this.finalizeAllPendingWindows()
     await this.waitForIdle()
   }
 
@@ -109,13 +150,14 @@ export class EventCapturer {
     }
     this.currentWindow = null
     this.nextWindowStartTimestamp = null
+    this.clearPendingWindows()
   }
 
   /**
    * Close the current window with the given reason, build the EventWindow,
    * enqueue it for async stream append, and reset state for the next window.
    */
-  private closeWindow(reason: EventWindow['closedBy']): void {
+  private closeWindow(reason: EventWindow['closedBy'], options?: CloseWindowOptions): void {
     if (this.currentWindow === null) return
 
     // Clear timers
@@ -128,25 +170,23 @@ export class EventCapturer {
       this.maxDurationTimer = null
     }
 
-    const events = this.currentWindow.events
-    const lastEventTimestamp = events[events.length - 1].timestamp
-    const endTimestamp = Math.max(this.currentWindow.startTimestamp, lastEventTimestamp)
-    const window: EventWindow = {
+    const pendingWindow: PendingWindow = {
       id: this.currentWindow.id,
       startTimestamp: this.currentWindow.startTimestamp,
-      endTimestamp,
-      events,
+      events: [...this.currentWindow.events],
       closedBy: reason,
+      boundaryTimestamp: options?.boundaryTimestamp ?? Date.now(),
+      includeBoundaryTimestamp: options?.includeBoundaryTimestamp ?? true,
+      finalizeTimer: null,
     }
 
     this.currentWindow = null
-    this.nextWindowStartTimestamp = endTimestamp
+    this.nextWindowStartTimestamp =
+      options?.nextWindowStartTimestamp ?? this.computeWindowBounds(pendingWindow).endTimestamp
 
-    log.info(
-      `[EventCapturer] Window closed (${reason}): ${window.events.length} events, ` +
-        `${window.endTimestamp - window.startTimestamp}ms`,
-    )
-    this.enqueueWindow(window)
+    const shouldWaitForLateEvents = options?.waitForLateEvents ?? true
+    const finalizeDelayMs = shouldWaitForLateEvents ? this.lateEventGraceMs : 0
+    this.schedulePendingWindowFinalize(pendingWindow, finalizeDelayMs)
   }
 
   private resetGapTimer(): void {
@@ -164,6 +204,102 @@ export class EventCapturer {
       this.maxDurationTimer = null
       this.closeWindow('max_duration')
     }, EVENT_CAPTURER_CONFIG.MAX_WINDOW_DURATION_MS)
+  }
+
+  private tryAttachToPendingWindow(event: InteractionContext): boolean {
+    for (let i = this.pendingWindows.length - 1; i >= 0; i--) {
+      const pendingWindow = this.pendingWindows[i]
+      const withinBoundary = pendingWindow.includeBoundaryTimestamp
+        ? event.timestamp <= pendingWindow.boundaryTimestamp
+        : event.timestamp < pendingWindow.boundaryTimestamp
+
+      if (!withinBoundary) continue
+
+      pendingWindow.events.push(event)
+      return true
+    }
+
+    return false
+  }
+
+  private schedulePendingWindowFinalize(pendingWindow: PendingWindow, delayMs: number): void {
+    this.pendingWindows.push(pendingWindow)
+
+    if (delayMs <= 0) {
+      this.finalizePendingWindowById(pendingWindow.id)
+      return
+    }
+
+    pendingWindow.finalizeTimer = setTimeout(() => {
+      pendingWindow.finalizeTimer = null
+      this.finalizePendingWindowById(pendingWindow.id)
+    }, delayMs)
+  }
+
+  private finalizeAllPendingWindows(): void {
+    while (this.pendingWindows.length > 0) {
+      this.finalizePendingWindowById(this.pendingWindows[0].id)
+    }
+  }
+
+  private finalizePendingWindowById(windowId: string): void {
+    const index = this.pendingWindows.findIndex((window) => window.id === windowId)
+    if (index < 0) return
+
+    const [pendingWindow] = this.pendingWindows.splice(index, 1)
+    if (pendingWindow.finalizeTimer !== null) {
+      clearTimeout(pendingWindow.finalizeTimer)
+      pendingWindow.finalizeTimer = null
+    }
+
+    const bounds = this.computeWindowBounds(pendingWindow)
+    const window: EventWindow = {
+      id: pendingWindow.id,
+      startTimestamp: bounds.startTimestamp,
+      endTimestamp: bounds.endTimestamp,
+      events: pendingWindow.events,
+      closedBy: pendingWindow.closedBy,
+    }
+
+    if (this.currentWindow === null) {
+      this.nextWindowStartTimestamp = window.endTimestamp
+    }
+
+    log.info(
+      `[EventCapturer] Window closed (${window.closedBy}): ${window.events.length} events, ` +
+        `${window.endTimestamp - window.startTimestamp}ms`,
+    )
+    this.enqueueWindow(window)
+  }
+
+  private computeWindowBounds(window: { startTimestamp: number; events: InteractionContext[] }): {
+    startTimestamp: number
+    endTimestamp: number
+  } {
+    const timestamps = window.events
+      .map((event) => event.timestamp)
+      .filter((timestamp) => Number.isFinite(timestamp))
+    if (timestamps.length === 0) {
+      return {
+        startTimestamp: window.startTimestamp,
+        endTimestamp: window.startTimestamp,
+      }
+    }
+
+    const maxTimestamp = Math.max(...timestamps)
+    return {
+      startTimestamp: window.startTimestamp,
+      endTimestamp: Math.max(window.startTimestamp, maxTimestamp),
+    }
+  }
+
+  private clearPendingWindows(): void {
+    for (const window of this.pendingWindows) {
+      if (window.finalizeTimer !== null) {
+        clearTimeout(window.finalizeTimer)
+      }
+    }
+    this.pendingWindows = []
   }
 
   private enqueueWindow(window: EventWindow): void {

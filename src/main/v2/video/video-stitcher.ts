@@ -10,6 +10,8 @@ import type {
 
 const DEFAULT_FRAME_DURATION_MS = 1_000
 const FFMPEG_EXECUTABLE_ENV = 'MEMORYLANE_FFMPEG_EXECUTABLE'
+const FFMPEG_VIDEO_PRESET = 'veryfast'
+const FFMPEG_VIDEO_CRF = '28'
 
 function escapeConcatPath(filepath: string): string {
   return filepath.replace(/'/g, "'\\''")
@@ -192,8 +194,14 @@ export class FfmpegVideoStitcher implements ActivityVideoStitcher {
         concatPath,
         '-c:v',
         'libx264',
+        '-preset',
+        FFMPEG_VIDEO_PRESET,
+        '-crf',
+        FFMPEG_VIDEO_CRF,
         '-pix_fmt',
         'yuv420p',
+        '-movflags',
+        '+faststart',
         outputPath,
       ])
     } finally {

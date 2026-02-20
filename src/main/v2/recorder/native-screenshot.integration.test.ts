@@ -63,6 +63,17 @@ describeIntegration('native screenshot integration', () => {
     assertPng(explicitOutputPath)
   })
 
+  it('respects max dimension when requested', async () => {
+    const outputPath = path.join(RUN_OUTPUT_DIR, 'max-dimension.png')
+    const result = await captureDesktop({ outputPath, maxDimensionPx: 1920 })
+
+    expect(result.filepath).toBe(outputPath)
+    expect(result.width).toBeGreaterThan(0)
+    expect(result.height).toBeGreaterThan(0)
+    expect(Math.max(result.width, result.height)).toBeLessThanOrEqual(1920)
+    assertPng(outputPath)
+  })
+
   it('prints where screenshots were saved for manual inspection', () => {
     expect(fs.existsSync(path.join(RUN_OUTPUT_DIR, 'desktop.png'))).toBe(true)
     expect(fs.existsSync(path.join(RUN_OUTPUT_DIR, 'explicit-display.png'))).toBe(true)

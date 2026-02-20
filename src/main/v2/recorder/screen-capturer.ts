@@ -8,6 +8,7 @@ export interface ScreenCapturerConfig {
   intervalMs?: number
   outputDir: string
   displayId?: number
+  maxDimensionPx?: number
   stream: DurableStream<Frame>
 }
 
@@ -24,6 +25,7 @@ export class ScreenCapturer {
   private readonly intervalMs: number
   private readonly outputDir: string
   private readonly displayId: number | undefined
+  private readonly maxDimensionPx: number | undefined
   private readonly stream: DurableStream<Frame>
   private _capturing = false
   private timer: ReturnType<typeof setTimeout> | null = null
@@ -34,6 +36,7 @@ export class ScreenCapturer {
     this.intervalMs = config.intervalMs ?? SCREEN_CAPTURER_CONFIG.DEFAULT_INTERVAL_MS
     this.outputDir = config.outputDir
     this.displayId = config.displayId
+    this.maxDimensionPx = config.maxDimensionPx ?? SCREEN_CAPTURER_CONFIG.MAX_DIMENSION_PX
     this.stream = config.stream
   }
 
@@ -83,6 +86,7 @@ export class ScreenCapturer {
     const result = await captureDesktop({
       outputPath,
       displayId: this.displayId,
+      maxDimensionPx: this.maxDimensionPx,
     })
 
     const frame: Frame = {

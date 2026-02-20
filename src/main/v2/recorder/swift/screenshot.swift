@@ -74,6 +74,44 @@ func writePNG(_ image: CGImage, to outputPath: String) throws {
     }
 }
 
+func resizeIfNeeded(_ image: CGImage, maxDimension: Int?) throws -> CGImage {
+    guard let maxDimension, maxDimension > 0 else {
+        return image
+    }
+
+    let width = image.width
+    let height = image.height
+    let longestEdge = max(width, height)
+    if longestEdge <= maxDimension {
+        return image
+    }
+
+    let scale = Double(maxDimension) / Double(longestEdge)
+    let targetWidth = max(1, Int((Double(width) * scale).rounded()))
+    let targetHeight = max(1, Int((Double(height) * scale).rounded()))
+
+    guard let context = CGContext(
+        data: nil,
+        width: targetWidth,
+        height: targetHeight,
+        bitsPerComponent: 8,
+        bytesPerRow: 0,
+        space: CGColorSpaceCreateDeviceRGB(),
+        bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+    ) else {
+        throw ScreenshotError.captureFailed("Could not allocate resize context")
+    }
+
+    context.interpolationQuality = .high
+    context.draw(image, in: CGRect(x: 0, y: 0, width: targetWidth, height: targetHeight))
+
+    guard let resized = context.makeImage() else {
+        throw ScreenshotError.captureFailed("Could not generate resized screenshot")
+    }
+
+    return resized
+}
+
 func resolveDisplayId(_ requestedDisplayId: UInt32?) throws -> CGDirectDisplayID {
     if let requestedDisplayId {
         var displayCount: UInt32 = 0
@@ -91,13 +129,18 @@ func resolveDisplayId(_ requestedDisplayId: UInt32?) throws -> CGDirectDisplayID
     return CGMainDisplayID()
 }
 
-func captureScreen(outputPath: String, requestedDisplayId: UInt32?) throws -> [String: Any] {
+func captureScreen(
+    outputPath: String,
+    requestedDisplayId: UInt32?,
+    maxDimension: Int?
+) throws -> [String: Any] {
     let displayId = try resolveDisplayId(requestedDisplayId)
 
-    guard let image = CGDisplayCreateImage(displayId) else {
+    guard let originalImage = CGDisplayCreateImage(displayId) else {
         throw ScreenshotError.captureFailed("Could not capture display \(displayId)")
     }
 
+    let image = try resizeIfNeeded(originalImage, maxDimension: maxDimension)
     try writePNG(image, to: outputPath)
 
     return [
@@ -112,7 +155,7 @@ func captureScreen(outputPath: String, requestedDisplayId: UInt32?) throws -> [S
 
 let usage = """
 Usage:
-  screenshot.swift --output <path> [--display-id <id>]
+  screenshot.swift --output <path> [--display-id <id>] [--max-dimension <px>]
 """
 
 do {
@@ -137,7 +180,23 @@ do {
         requestedDisplayId = nil
     }
 
-    emitJSON(try captureScreen(outputPath: outputPath, requestedDisplayId: requestedDisplayId))
+    let maxDimension: Int?
+    if let maxDimensionRaw = options["--max-dimension"] {
+        guard let parsed = Int(maxDimensionRaw), parsed > 0 else {
+            throw ScreenshotError.invalidArguments("Invalid --max-dimension value: \(maxDimensionRaw)")
+        }
+        maxDimension = parsed
+    } else {
+        maxDimension = nil
+    }
+
+    emitJSON(
+        try captureScreen(
+            outputPath: outputPath,
+            requestedDisplayId: requestedDisplayId,
+            maxDimension: maxDimension
+        )
+    )
 } catch ScreenshotError.invalidArguments(let message) {
     fail(message, exitCode: 2)
 } catch ScreenshotError.displayNotFound(let displayId) {

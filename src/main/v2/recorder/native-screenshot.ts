@@ -13,6 +13,7 @@ interface ScreenshotExecutable {
 export interface DesktopCaptureOptions {
   outputPath: string
   displayId?: number
+  maxDimensionPx?: number
 }
 
 export interface DesktopCaptureResult {
@@ -161,6 +162,12 @@ export async function captureDesktop(
   const args = ['--output', options.outputPath]
   if (options.displayId !== undefined) {
     args.push('--display-id', String(options.displayId))
+  }
+  if (options.maxDimensionPx !== undefined) {
+    if (!Number.isFinite(options.maxDimensionPx) || options.maxDimensionPx <= 0) {
+      throw new Error(`maxDimensionPx must be a positive finite number: ${options.maxDimensionPx}`)
+    }
+    args.push('--max-dimension', String(Math.floor(options.maxDimensionPx)))
   }
 
   const output = await runCapture(args)

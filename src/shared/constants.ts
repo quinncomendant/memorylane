@@ -60,6 +60,7 @@ export const OCR_CONFIG = {
 // Screen Capturer Configuration
 export const SCREEN_CAPTURER_CONFIG = {
   DEFAULT_INTERVAL_MS: 1000,
+  MAX_DIMENSION_PX: 1_920,
 }
 
 // Managed Key / Subscription Configuration

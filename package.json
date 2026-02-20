@@ -23,6 +23,7 @@
     "test:integration:native-screenshot": "npm run build:swift && cross-env RUN_NATIVE_SCREENSHOT_INTEGRATION=1 node ./scripts/enode.js ./node_modules/vitest/vitest.mjs src/main/v2/recorder/native-screenshot.integration.test.ts",
     "test:integration:screen-capturer": "npm run build:swift && cross-env RUN_NATIVE_SCREENSHOT_INTEGRATION=1 node ./scripts/enode.js ./node_modules/vitest/vitest.mjs src/main/v2/recorder/screen-capturer.integration.test.ts",
     "test:integration:video-stitcher": "cross-env RUN_VIDEO_STITCHER_INTEGRATION=1 node ./scripts/enode.js ./node_modules/vitest/vitest.mjs src/main/v2/video/video-stitcher.integration.test.ts",
+    "test:integration:v2-semantic": "cross-env RUN_V2_SEMANTIC_INTEGRATION=1 node ./scripts/enode.js ./node_modules/vitest/vitest.mjs src/main/v2/activity-semantic-service.integration.test.ts",
     "postinstall": "electron-builder install-app-deps",
     "prepare": "husky",
     "db:search": "node ./scripts/enode.js ./node_modules/.bin/tsx scripts/db-search.ts",

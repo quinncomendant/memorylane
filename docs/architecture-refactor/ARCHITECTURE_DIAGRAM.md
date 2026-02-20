@@ -70,9 +70,32 @@ flowchart TD
   EXT --> STORE
 ```
 
+## Target Extraction Detail
+
+```mermaid
+flowchart TD
+  AOUT["Activity Stream"]
+  COORD["ActivityExtractorCoordinator"]
+  TX["ActivityTransformer (Injected)"]
+  SINK["ActivitySink (Injected)"]
+  STORE["Storage"]
+  AOUT --> COORD
+  COORD --> TX
+  TX --> SINK
+  SINK --> STORE
+```
+
+### Component Responsibilities
+
+- `ActivityExtractorCoordinator`: orchestrates extraction for each activity from the stream.
+- `ActivityTransformer` (injected dependency): maps `V2Activity` to storage-ready extracted data.
+- `ActivitySink` (injected dependency): persists extracted data to storage.
+- In tests, inject fake transformer/sink implementations to validate coordinator behavior without real LLM/OCR.
+
 ## Why the target split helps
 
 - Producers are simple and testable in isolation.
 - Activity logic is centralized in one producer, which is easier to reason about.
 - Activity extraction is downstream-only and independent of capture/sessionization internals.
 - Regression tests can replay streams deterministically.
+- Extraction can be tested without LLM calls by injecting transformer/sink dependencies.

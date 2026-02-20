@@ -77,6 +77,15 @@ export class EventCapturer {
     this.closeWindow('flush')
   }
 
+  async waitForIdle(): Promise<void> {
+    await this.appendChain
+  }
+
+  async flushAndWait(): Promise<void> {
+    this.flush()
+    await this.waitForIdle()
+  }
+
   /**
    * Hard cleanup — clears all timers and discards any open window WITHOUT
    * emitting. Used on app quit where we don't need the partial data.

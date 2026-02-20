@@ -4,6 +4,7 @@ import log from '../logger'
 import type { EventWindow, InteractionContext } from '../../shared/types'
 import type { Frame } from './recorder/screen-capturer'
 import type { DurableStream, Offset, StreamRecord, StreamSubscription } from './streams/stream'
+import { v5 as uuidv5 } from 'uuid'
 import {
   DEFAULT_V2_ACTIVITY_PRODUCER_CONFIG,
   type V2Activity,
@@ -11,6 +12,8 @@ import {
   type V2ActivityFrame,
   type V2ActivityProducerConfig,
 } from './activity-types'
+
+const ACTIVITY_ID_NAMESPACE = uuidv5('memorylane:v2-activity', uuidv5.DNS)
 
 export interface ActivityProducerStats {
   emittedActivities: number
@@ -284,8 +287,9 @@ export class ActivityProducer {
   }
 
   private createPendingActivity(chunk: ChunkContext): V2Activity {
+    const activityKey = `${chunk.windowId}:${chunk.eventOffset}:${chunk.startTimestamp}:${chunk.endTimestamp}`
     return {
-      id: `${chunk.windowId}:${chunk.eventOffset}:${chunk.startTimestamp}:${chunk.endTimestamp}`,
+      id: uuidv5(activityKey, ACTIVITY_ID_NAMESPACE),
       startTimestamp: chunk.startTimestamp,
       endTimestamp: chunk.endTimestamp,
       context: { ...chunk.context },

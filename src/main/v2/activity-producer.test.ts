@@ -146,6 +146,50 @@ describe('ActivityProducer', () => {
     expect(await eventStream.getAck('test:event')).toBe(eventOffset)
   })
 
+  it('emits deterministic UUIDv5 ids for the same source window chunk', async () => {
+    const runOnce = async (): Promise<string> => {
+      const { producer, frameStream, eventStream, activityStream } = createProducer()
+      const activities: V2Activity[] = []
+      subscriptions.push(
+        activityStream.subscribe({
+          startAt: { type: 'now' },
+          onRecord: (record) => activities.push(record.payload),
+        }),
+      )
+
+      await producer.start()
+      await frameStream.append(makeFrame(1_000, 0))
+      await eventStream.append(
+        makeWindow({
+          id: 'stable-window',
+          startTimestamp: 900,
+          endTimestamp: 1_100,
+          closedBy: 'flush',
+          events: [
+            makeEvent(900, 'app_change', {
+              activeWindow: {
+                title: 'Stable',
+                processName: 'Code',
+                bundleId: 'com.microsoft.VSCode',
+              },
+            }),
+          ],
+        }),
+      )
+
+      await waitFor(() => activities.length === 1, 'Expected one activity')
+      return activities[0].id
+    }
+
+    const firstId = await runOnce()
+    const secondId = await runOnce()
+
+    expect(firstId).toBe(secondId)
+    expect(firstId).toMatch(
+      /^[0-9a-f]{8}-[0-9a-f]{4}-5[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i,
+    )
+  })
+
   it('merges adjacent windows with same app + same tld and finalizes on context change', async () => {
     const { producer, frameStream, eventStream, activityStream } = createProducer()
     const activities: V2Activity[] = []

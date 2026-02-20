@@ -23,6 +23,11 @@ function createMockChildProcess(): MockChildProcess {
   return processEmitter
 }
 
+function manifestFromSpawnArgs(args: string[]): string {
+  const concatPath = args[args.indexOf('-i') + 1]
+  return fs.readFileSync(concatPath, 'utf8')
+}
+
 describe('FfmpegVideoStitcher', () => {
   const tempDirs: string[] = []
   let ffmpegExecutablePath: string
@@ -74,7 +79,14 @@ describe('FfmpegVideoStitcher', () => {
     )
 
     const stitcher = new FfmpegVideoStitcher()
-    const promise = stitcher.stitch({ framePaths: [frameA, frameB], outputPath })
+    const promise = stitcher.stitch({
+      activityId: 'activity-1',
+      frames: [
+        { filepath: frameA, timestamp: 1_000 },
+        { filepath: frameB, timestamp: 2_000 },
+      ],
+      outputPath,
+    })
 
     expect(childProcess.spawn).toHaveBeenCalledTimes(1)
     const [command, args] = vi.mocked(childProcess.spawn).mock.calls[0]
@@ -83,30 +95,61 @@ describe('FfmpegVideoStitcher', () => {
     expect(args).toContain('concat')
     expect(args).toContain('-safe')
     expect(args).toContain('0')
-    expect(args).toContain('-r')
-    expect(args).toContain('1')
     expect(args).toContain('-c:v')
     expect(args).toContain('libx264')
     expect(args).toContain('-pix_fmt')
     expect(args).toContain('yuv420p')
+    expect(args).not.toContain('-r')
     expect(args[args.length - 1]).toBe(path.resolve(outputPath))
 
-    const concatPath = args[args.indexOf('-i') + 1]
-    const manifestContent = fs.readFileSync(concatPath, 'utf8')
+    const manifestContent = manifestFromSpawnArgs(args)
     expect(manifestContent.indexOf(path.resolve(frameA))).toBeLessThan(
       manifestContent.indexOf(path.resolve(frameB)),
     )
+    expect(manifestContent).toContain('duration 1.000000')
 
     mockChild.emit('close', 0)
 
     await expect(promise).resolves.toEqual({
-      filepath: path.resolve(outputPath),
+      videoPath: path.resolve(outputPath),
       frameCount: 2,
+      durationMs: 2_000,
     })
-    expect(fs.existsSync(concatPath)).toBe(false)
   })
 
-  it('uses provided fps in ffmpeg arguments', async () => {
+  it('derives frame durations from timestamps', async () => {
+    const childProcess = await import('child_process')
+    const tempDir = createTempDir()
+    const frameA = createFrame(tempDir, 'a.png')
+    const frameB = createFrame(tempDir, 'b.png')
+    const frameC = createFrame(tempDir, 'c.png')
+
+    const mockChild = createMockChildProcess()
+    vi.mocked(childProcess.spawn).mockReturnValue(
+      mockChild as unknown as ReturnType<typeof childProcess.spawn>,
+    )
+
+    const stitcher = new FfmpegVideoStitcher()
+    const promise = stitcher.stitch({
+      activityId: 'activity-2',
+      frames: [
+        { filepath: frameA, timestamp: 1_000 },
+        { filepath: frameB, timestamp: 1_500 },
+        { filepath: frameC, timestamp: 3_000 },
+      ],
+      outputPath: path.join(tempDir, 'out.mp4'),
+    })
+
+    const [, args] = vi.mocked(childProcess.spawn).mock.calls[0]
+    const manifestContent = manifestFromSpawnArgs(args)
+    expect(manifestContent).toContain('duration 0.500000')
+    expect(manifestContent).toContain('duration 1.500000')
+
+    mockChild.emit('close', 0)
+    await expect(promise).resolves.toMatchObject({ durationMs: 3_500 })
+  })
+
+  it('sorts frames by timestamp before writing concat manifest', async () => {
     const childProcess = await import('child_process')
     const tempDir = createTempDir()
     const frameA = createFrame(tempDir, 'a.png')
@@ -119,24 +162,32 @@ describe('FfmpegVideoStitcher', () => {
 
     const stitcher = new FfmpegVideoStitcher()
     const promise = stitcher.stitch({
-      framePaths: [frameA, frameB],
-      fps: 2,
+      activityId: 'activity-3',
+      frames: [
+        { filepath: frameB, timestamp: 2_000 },
+        { filepath: frameA, timestamp: 1_000 },
+      ],
       outputPath: path.join(tempDir, 'out.mp4'),
     })
 
+    const [, args] = vi.mocked(childProcess.spawn).mock.calls[0]
+    const manifestContent = manifestFromSpawnArgs(args)
+    expect(manifestContent.indexOf(path.resolve(frameA))).toBeLessThan(
+      manifestContent.indexOf(path.resolve(frameB)),
+    )
+
     mockChild.emit('close', 0)
     await promise
-
-    const [, args] = vi.mocked(childProcess.spawn).mock.calls[0]
-    const rIndex = args.indexOf('-r')
-    expect(rIndex).toBeGreaterThanOrEqual(0)
-    expect(args[rIndex + 1]).toBe('2')
   })
 
   it('rejects when less than 2 frames are provided', async () => {
     const stitcher = new FfmpegVideoStitcher()
     await expect(
-      stitcher.stitch({ framePaths: [], outputPath: path.join(os.tmpdir(), 'out.mp4') }),
+      stitcher.stitch({
+        activityId: 'activity-4',
+        frames: [],
+        outputPath: path.join(os.tmpdir(), 'out.mp4'),
+      }),
     ).rejects.toThrow('at least 2 frame paths')
   })
 
@@ -148,13 +199,17 @@ describe('FfmpegVideoStitcher', () => {
     const stitcher = new FfmpegVideoStitcher()
     await expect(
       stitcher.stitch({
-        framePaths: [frameA, missing],
+        activityId: 'activity-5',
+        frames: [
+          { filepath: frameA, timestamp: 1_000 },
+          { filepath: missing, timestamp: 2_000 },
+        ],
         outputPath: path.join(tempDir, 'out.mp4'),
       }),
     ).rejects.toThrow(`Frame file not found: ${missing}`)
   })
 
-  it('rejects when fps is invalid', async () => {
+  it('rejects when a frame timestamp is invalid', async () => {
     const tempDir = createTempDir()
     const frameA = createFrame(tempDir, 'a.png')
     const frameB = createFrame(tempDir, 'b.png')
@@ -162,11 +217,14 @@ describe('FfmpegVideoStitcher', () => {
     const stitcher = new FfmpegVideoStitcher()
     await expect(
       stitcher.stitch({
-        framePaths: [frameA, frameB],
-        fps: 0,
+        activityId: 'activity-6',
+        frames: [
+          { filepath: frameA, timestamp: Number.NaN },
+          { filepath: frameB, timestamp: 2_000 },
+        ],
         outputPath: path.join(tempDir, 'out.mp4'),
       }),
-    ).rejects.toThrow('fps must be a positive number')
+    ).rejects.toThrow('Frame timestamp must be a finite number')
   })
 
   it('cleans up concat temp file when ffmpeg exits non-zero', async () => {
@@ -182,7 +240,11 @@ describe('FfmpegVideoStitcher', () => {
 
     const stitcher = new FfmpegVideoStitcher()
     const promise = stitcher.stitch({
-      framePaths: [frameA, frameB],
+      activityId: 'activity-7',
+      frames: [
+        { filepath: frameA, timestamp: 1_000 },
+        { filepath: frameB, timestamp: 2_000 },
+      ],
       outputPath: path.join(tempDir, 'out.mp4'),
     })
 
@@ -210,7 +272,11 @@ describe('FfmpegVideoStitcher', () => {
 
     const stitcher = new FfmpegVideoStitcher()
     const promise = stitcher.stitch({
-      framePaths: [frameA, frameB],
+      activityId: 'activity-8',
+      frames: [
+        { filepath: frameA, timestamp: 1_000 },
+        { filepath: frameB, timestamp: 2_000 },
+      ],
       outputPath: path.join(tempDir, 'out.mp4'),
     })
 

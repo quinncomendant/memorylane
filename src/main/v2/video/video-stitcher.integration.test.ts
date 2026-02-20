@@ -49,15 +49,18 @@ describeIntegration('video stitcher integration', () => {
     const outputPath = path.join(RUN_OUTPUT_DIR, 'stitched.mp4')
     const stitcher = new FfmpegVideoStitcher()
     const result = await stitcher.stitch({
-      framePaths,
-      fps: 1,
+      activityId: 'integration-activity-1',
+      frames: [
+        { filepath: framePaths[0], timestamp: 1_000 },
+        { filepath: framePaths[1], timestamp: 2_000 },
+        { filepath: framePaths[2], timestamp: 3_000 },
+      ],
       outputPath,
     })
 
-    expect(result).toEqual({
-      filepath: path.resolve(outputPath),
-      frameCount: framePaths.length,
-    })
+    expect(result.videoPath).toBe(path.resolve(outputPath))
+    expect(result.frameCount).toBe(framePaths.length)
+    expect(result.durationMs).toBe(3_000)
     expect(fs.existsSync(outputPath)).toBe(true)
     expect(fs.statSync(outputPath).size).toBeGreaterThan(0)
   }, 20_000)
@@ -79,11 +82,15 @@ describeIntegration('video stitcher integration', () => {
       const nestedOutput = path.join(tempRoot, 'nested', 'path', 'video.mp4')
       const stitcher = new FfmpegVideoStitcher()
       const result = await stitcher.stitch({
-        framePaths: [frameA, frameB],
+        activityId: 'integration-activity-2',
+        frames: [
+          { filepath: frameA, timestamp: 1_000 },
+          { filepath: frameB, timestamp: 2_000 },
+        ],
         outputPath: nestedOutput,
       })
 
-      expect(result.filepath).toBe(path.resolve(nestedOutput))
+      expect(result.videoPath).toBe(path.resolve(nestedOutput))
       expect(fs.existsSync(nestedOutput)).toBe(true)
       expect(fs.statSync(nestedOutput).size).toBeGreaterThan(0)
     } finally {

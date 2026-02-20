@@ -2,53 +2,65 @@ import { spawn } from 'child_process'
 import * as fs from 'fs'
 import * as os from 'os'
 import * as path from 'path'
+import type {
+  ActivityVideoAsset,
+  ActivityVideoFrameInput,
+  ActivityVideoStitcher,
+} from '../activity-transformer-types'
 
-const DEFAULT_FPS = 1
+const DEFAULT_FRAME_DURATION_MS = 1_000
 const FFMPEG_EXECUTABLE_ENV = 'MEMORYLANE_FFMPEG_EXECUTABLE'
-
-export interface VideoStitcherInput {
-  framePaths: string[]
-  fps?: number
-  outputPath: string
-}
-
-export interface VideoStitcherResult {
-  filepath: string
-  frameCount: number
-}
-
-export interface VideoStitcher {
-  stitch(input: VideoStitcherInput): Promise<VideoStitcherResult>
-}
 
 function escapeConcatPath(filepath: string): string {
   return filepath.replace(/'/g, "'\\''")
 }
 
-function assertFramePaths(framePaths: string[]): void {
-  if (framePaths.length < 2) {
+function sortFramesByTimestamp(frames: ActivityVideoFrameInput[]): ActivityVideoFrameInput[] {
+  return frames
+    .map((frame, index) => ({ ...frame, index }))
+    .sort((left, right) => {
+      if (left.timestamp !== right.timestamp) {
+        return left.timestamp - right.timestamp
+      }
+      return left.index - right.index
+    })
+    .map(({ filepath, timestamp }) => ({ filepath, timestamp }))
+}
+
+function assertFrames(frames: ActivityVideoFrameInput[]): void {
+  if (frames.length < 2) {
     throw new Error('Video stitcher requires at least 2 frame paths')
   }
 
-  for (const framePath of framePaths) {
-    if (!fs.existsSync(framePath)) {
-      throw new Error(`Frame file not found: ${framePath}`)
+  for (const frame of frames) {
+    if (!Number.isFinite(frame.timestamp)) {
+      throw new Error(`Frame timestamp must be a finite number: ${frame.timestamp}`)
+    }
+    if (!fs.existsSync(frame.filepath)) {
+      throw new Error(`Frame file not found: ${frame.filepath}`)
     }
   }
 }
 
-function assertFps(fps: number): void {
-  if (!Number.isFinite(fps) || fps <= 0) {
-    throw new Error(`fps must be a positive number (received: ${fps})`)
+function deriveFrameDurationsMs(frames: ActivityVideoFrameInput[]): number[] {
+  const durationsMs: number[] = []
+
+  for (let i = 0; i < frames.length - 1; i++) {
+    const delta = frames[i + 1].timestamp - frames[i].timestamp
+    durationsMs.push(delta > 0 ? delta : DEFAULT_FRAME_DURATION_MS)
   }
+
+  durationsMs.push(durationsMs[durationsMs.length - 1] ?? DEFAULT_FRAME_DURATION_MS)
+  return durationsMs
 }
 
-function buildConcatManifest(framePaths: string[], fps: number): string {
-  const resolved = framePaths.map((framePath) => path.resolve(framePath))
-  const durationSeconds = 1 / fps
+function buildConcatManifest(frames: ActivityVideoFrameInput[], durationsMs: number[]): string {
+  const resolved = frames.map((frame) => path.resolve(frame.filepath))
   const lines: string[] = []
 
-  for (const framePath of resolved) {
+  for (let i = 0; i < resolved.length; i++) {
+    const framePath = resolved[i]
+    const durationSeconds = durationsMs[i] / 1_000
     lines.push(`file '${escapeConcatPath(framePath)}'`)
     lines.push(`duration ${durationSeconds.toFixed(6)}`)
   }
@@ -144,11 +156,17 @@ function runFfmpeg(command: string, args: string[]): Promise<void> {
   })
 }
 
-export class FfmpegVideoStitcher implements VideoStitcher {
-  async stitch(input: VideoStitcherInput): Promise<VideoStitcherResult> {
-    const fps = input.fps ?? DEFAULT_FPS
-    assertFramePaths(input.framePaths)
-    assertFps(fps)
+export class FfmpegVideoStitcher implements ActivityVideoStitcher {
+  async stitch(input: {
+    activityId: string
+    frames: ActivityVideoFrameInput[]
+    outputPath: string
+  }): Promise<ActivityVideoAsset> {
+    void input.activityId
+    assertFrames(input.frames)
+    const frames = sortFramesByTimestamp(input.frames)
+    const frameDurationsMs = deriveFrameDurationsMs(frames)
+    const durationMs = frameDurationsMs.reduce((sum, value) => sum + value, 0)
 
     const outputPath = path.resolve(input.outputPath)
     fs.mkdirSync(path.dirname(outputPath), { recursive: true })
@@ -157,7 +175,7 @@ export class FfmpegVideoStitcher implements VideoStitcher {
       os.tmpdir(),
       `memorylane-ffmpeg-concat-${Date.now()}-${Math.random().toString(16).slice(2)}.txt`,
     )
-    fs.writeFileSync(concatPath, buildConcatManifest(input.framePaths, fps), 'utf8')
+    fs.writeFileSync(concatPath, buildConcatManifest(frames, frameDurationsMs), 'utf8')
     const ffmpegExecutable = resolveFfmpegExecutable()
 
     try {
@@ -172,8 +190,6 @@ export class FfmpegVideoStitcher implements VideoStitcher {
         '0',
         '-i',
         concatPath,
-        '-r',
-        String(fps),
         '-c:v',
         'libx264',
         '-pix_fmt',
@@ -189,8 +205,9 @@ export class FfmpegVideoStitcher implements VideoStitcher {
     }
 
     return {
-      filepath: outputPath,
-      frameCount: input.framePaths.length,
+      videoPath: outputPath,
+      frameCount: frames.length,
+      durationMs,
     }
   }
 }

@@ -42,6 +42,12 @@ export const ACTIVITY_CONFIG = {
   MAX_SCREENSHOTS_FOR_LLM: 6, // Max images sent to LLM
 }
 
+// Event Capturer Configuration (gap-based session windowing)
+export const EVENT_CAPTURER_CONFIG = {
+  GAP_TIMEOUT_MS: 5_000,
+  MAX_WINDOW_DURATION_MS: 5 * 60 * 1000, // Safety cap only — most windows close via gap timer
+}
+
 // OCR Pipeline Configuration
 export const OCR_CONFIG = {
   ENABLED: true, // Toggle OCR extraction during activity processing

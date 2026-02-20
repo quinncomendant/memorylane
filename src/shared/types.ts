@@ -34,6 +34,14 @@ export interface InteractionContext {
   }
 }
 
+export interface EventWindow {
+  id: string
+  startTimestamp: number
+  endTimestamp: number
+  events: InteractionContext[]
+  closedBy: 'gap' | 'app_change' | 'max_duration' | 'flush'
+}
+
 export interface ClassificationResult {
   summary: string
   timestamp: number

@@ -70,6 +70,7 @@ export interface V2ActivitySemanticServiceConfig {
   usageTracker?: UsageTrackerLike
   client?: SemanticChatClient
   endpointConfig?: V2SemanticEndpointConfig
+  debugDumper?: V2SemanticDebugDumper
 }
 
 export interface V2SemanticAttempt {
@@ -92,4 +93,22 @@ export interface V2SemanticRunDiagnostics {
   selectedSnapshotPaths: string[]
   videoSizeBytes: number | null
   videoMimeType: string | null
+}
+
+export interface V2SemanticRoundTripDump {
+  activityId: string
+  mode: SemanticMode
+  model: string
+  startedAt: number
+  durationMs: number
+  success: boolean
+  request: ChatRequest
+  requestJson: string
+  responseJson?: string
+  summary?: string
+  error?: string
+}
+
+export interface V2SemanticDebugDumper {
+  dumpRoundTrip(input: V2SemanticRoundTripDump): void
 }

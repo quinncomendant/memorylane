@@ -3,7 +3,7 @@ import * as os from 'os'
 import * as path from 'path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { V2Activity, V2ActivityFrame } from './activity-types'
-import { V2ActivitySemanticService } from './activity-semantic-service'
+import { V2ActivitySemanticService, V2SemanticFileDebugDumper } from './activity-semantic-service'
 
 vi.mock('../logger', () => ({
   default: {
@@ -599,5 +599,66 @@ describe('V2ActivitySemanticService', () => {
     expect(diagnostics?.attempts).toHaveLength(
       DEFAULT_VIDEO_MODELS.length + DEFAULT_SNAPSHOT_MODELS.length,
     )
+  })
+
+  it('dumps exact request and response payloads when debug dumper is configured', async () => {
+    const tempDir = createTempDir()
+    tempDirs.push(tempDir)
+    const videoPath = createVideoFile(tempDir)
+    const dumpRootDir = path.join(tempDir, 'dumps')
+    const dumper = new V2SemanticFileDebugDumper({
+      rootDir: dumpRootDir,
+      copyMediaAssets: true,
+    })
+
+    const send = vi.fn().mockResolvedValue(response('dumped summary'))
+    const service = new V2ActivitySemanticService(undefined, {
+      client: { chat: { send } },
+      debugDumper: dumper,
+      usageTracker: { recordUsage: vi.fn() },
+      videoModels: ['model-for-dump'],
+      snapshotModels: [],
+    })
+
+    const result = await service.summarizeFromVideo({
+      activity: makeActivity({ id: 'debug-activity' }),
+      videoPath,
+      ocrText: 'ignored',
+    })
+
+    expect(result).toBe('dumped summary')
+
+    const runDir = dumper.getRunDir()
+    const attempts = fs.readdirSync(runDir)
+    expect(attempts).toHaveLength(1)
+
+    const attemptDir = path.join(runDir, attempts[0])
+    const requestJson = fs.readFileSync(path.join(attemptDir, 'request.json'), 'utf8')
+    const responseJson = fs.readFileSync(path.join(attemptDir, 'response.json'), 'utf8')
+    const summaryTxt = fs.readFileSync(path.join(attemptDir, 'summary.txt'), 'utf8')
+    const copiedVideo = fs.readFileSync(path.join(attemptDir, 'input-video-01.mp4'))
+    const metadata = JSON.parse(
+      fs.readFileSync(path.join(attemptDir, 'metadata.json'), 'utf8'),
+    ) as {
+      success: boolean
+      activityId: string
+      model: string
+      requestSha256: string
+      responseSha256: string
+      copiedMediaFiles: string[]
+    }
+
+    expect(requestJson).toBe(`${JSON.stringify(send.mock.calls[0][0], null, 2)}\n`)
+    expect(responseJson).toBe(`${JSON.stringify(response('dumped summary'), null, 2)}\n`)
+    expect(summaryTxt).toBe('dumped summary\n')
+    expect(metadata.success).toBe(true)
+    expect(metadata.activityId).toBe('debug-activity')
+    expect(metadata.model).toBe('model-for-dump')
+    expect(typeof metadata.requestSha256).toBe('string')
+    expect(metadata.requestSha256.length).toBe(64)
+    expect(typeof metadata.responseSha256).toBe('string')
+    expect(metadata.responseSha256.length).toBe(64)
+    expect(copiedVideo.toString('utf8')).toBe('fake-video-binary')
+    expect(metadata.copiedMediaFiles).toEqual(['input-video-01.mp4'])
   })
 })

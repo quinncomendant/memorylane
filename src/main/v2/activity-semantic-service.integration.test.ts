@@ -3,7 +3,7 @@ import * as path from 'path'
 import sharp from 'sharp'
 import { beforeAll, describe, expect, it } from 'vitest'
 import type { V2Activity, V2ActivityFrame } from './activity-types'
-import { V2ActivitySemanticService } from './activity-semantic-service'
+import { V2ActivitySemanticService, V2SemanticFileDebugDumper } from './activity-semantic-service'
 import { FfmpegVideoStitcher } from './video/video-stitcher'
 
 const RUN_INTEGRATION =
@@ -125,8 +125,14 @@ describeIntegration('v2 semantic service integration', () => {
     })
 
     const activity = makeActivity(frames)
+    const llmDumpRootDir = path.join(RUN_OUTPUT_DIR, 'llm-round-trips')
+    const debugDumper = new V2SemanticFileDebugDumper({
+      rootDir: llmDumpRootDir,
+      copyMediaAssets: true,
+    })
     const service = new V2ActivitySemanticService(process.env.OPENROUTER_API_KEY, {
       usageTracker: { recordUsage: () => undefined },
+      debugDumper,
     })
 
     const startedAt = Date.now()
@@ -153,6 +159,7 @@ describeIntegration('v2 semantic service integration', () => {
           elapsedMs: endedAt - startedAt,
           videoPath,
           runOutputDir: RUN_OUTPUT_DIR,
+          llmDumpDir: debugDumper.getRunDir(),
         },
         null,
         2,
@@ -192,6 +199,8 @@ describeIntegration('v2 semantic service integration', () => {
     expect(fs.existsSync(path.join(RUN_OUTPUT_DIR, 'selected-snapshots.json'))).toBe(true)
     expect(fs.existsSync(path.join(RUN_OUTPUT_DIR, 'summary.txt'))).toBe(true)
     expect(fs.existsSync(path.join(RUN_OUTPUT_DIR, 'timings.json'))).toBe(true)
+    expect(fs.existsSync(debugDumper.getRunDir())).toBe(true)
+    expect(fs.readdirSync(debugDumper.getRunDir()).length).toBeGreaterThan(0)
     expect((diagnostics?.attempts.length ?? 0) > 0).toBe(true)
   }, 120_000)
 })

@@ -13,6 +13,7 @@ import { buildSemanticPrompt } from './prompt'
 import { selectSnapshotFrames } from './sampling'
 import type {
   AttemptResult,
+  ChatRequest,
   ChatContentItem,
   ChatResponseLike,
   SemanticMode,
@@ -31,6 +32,7 @@ export class V2ActivitySemanticService implements ActivitySemanticService {
   private readonly maxVideoBytes: number
   private readonly requestTimeoutMs: number
   private readonly usageTracker: V2ActivitySemanticServiceConfig['usageTracker']
+  private readonly debugDumper: V2ActivitySemanticServiceConfig['debugDumper']
   private readonly usesInjectedClient: boolean
   private openRouterApiKey: string | null
   private isCustomEndpoint = false
@@ -49,6 +51,7 @@ export class V2ActivitySemanticService implements ActivitySemanticService {
     this.maxVideoBytes = config?.maxVideoBytes ?? 25 * 1024 * 1024
     this.requestTimeoutMs = config?.requestTimeoutMs ?? 45_000
     this.usageTracker = config?.usageTracker ?? new UsageTracker()
+    this.debugDumper = config?.debugDumper
 
     if (!Number.isInteger(this.maxSnapshots) || this.maxSnapshots <= 0) {
       throw new Error('maxSnapshots must be a positive integer')
@@ -285,22 +288,26 @@ export class V2ActivitySemanticService implements ActivitySemanticService {
     }
 
     for (const model of params.models) {
+      const request: ChatRequest = {
+        model,
+        messages: [
+          {
+            role: 'user',
+            content: params.buildContent(model),
+          },
+        ],
+      }
+      const requestJson = this.safeStringify(request)
       const startedAt = Date.now()
+
       try {
         const response = (await this.withTimeout(
-          this.client!.chat.send({
-            model,
-            messages: [
-              {
-                role: 'user',
-                content: params.buildContent(model),
-              },
-            ],
-          }),
+          this.client!.chat.send(request),
           this.requestTimeoutMs,
           `semantic model request timed out after ${this.requestTimeoutMs}ms`,
         )) as ChatResponseLike
 
+        const responseJson = this.safeStringify(response)
         const summary = this.extractSummary(response)
         const usage = this.extractUsage(response)
         const durationMs = Date.now() - startedAt
@@ -314,6 +321,20 @@ export class V2ActivitySemanticService implements ActivitySemanticService {
             error: 'empty summary',
             promptTokens: usage.promptTokens,
             completionTokens: usage.completionTokens,
+          })
+
+          this.dumpRoundTripSafe({
+            activityId: params.diagnostics.activityId,
+            mode: params.mode,
+            model,
+            startedAt,
+            durationMs,
+            success: false,
+            request,
+            error: 'empty summary',
+            requestJson,
+            responseJson,
+            summary,
           })
           continue
         }
@@ -331,6 +352,19 @@ export class V2ActivitySemanticService implements ActivitySemanticService {
           model,
           promptTokens: usage.promptTokens,
           completionTokens: usage.completionTokens,
+        })
+
+        this.dumpRoundTripSafe({
+          activityId: params.diagnostics.activityId,
+          mode: params.mode,
+          model,
+          startedAt,
+          durationMs,
+          success: true,
+          request,
+          requestJson,
+          responseJson,
+          summary,
         })
 
         log.info(
@@ -355,6 +389,18 @@ export class V2ActivitySemanticService implements ActivitySemanticService {
           model,
           durationMs,
           success: false,
+          error: detail,
+        })
+
+        this.dumpRoundTripSafe({
+          activityId: params.diagnostics.activityId,
+          mode: params.mode,
+          model,
+          startedAt,
+          durationMs,
+          success: false,
+          request,
+          requestJson,
           error: detail,
         })
 
@@ -473,6 +519,42 @@ export class V2ActivitySemanticService implements ActivitySemanticService {
       return error.message
     }
     return String(error)
+  }
+
+  private safeStringify(value: unknown): string {
+    try {
+      return `${JSON.stringify(value, null, 2)}\n`
+    } catch (error) {
+      return `${JSON.stringify({ error: this.describeError(error) }, null, 2)}\n`
+    }
+  }
+
+  private dumpRoundTripSafe(input: {
+    activityId: string
+    mode: SemanticMode
+    model: string
+    startedAt: number
+    durationMs: number
+    success: boolean
+    request: ChatRequest
+    requestJson: string
+    responseJson?: string
+    summary?: string
+    error?: string
+  }): void {
+    try {
+      this.debugDumper?.dumpRoundTrip(input)
+    } catch (error) {
+      log.warn(
+        '[V2ActivitySemanticService] Debug dump failed',
+        JSON.stringify({
+          activityId: input.activityId,
+          mode: input.mode,
+          model: input.model,
+          error: this.describeError(error),
+        }),
+      )
+    }
   }
 
   private configureClient(endpointConfig: V2SemanticEndpointConfig | null): void {

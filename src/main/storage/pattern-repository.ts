@@ -10,9 +10,7 @@ export interface Pattern {
   description: string
   apps: string[] // JSON array in DB
   automationIdea: string
-  frequency: string
   createdAt: number
-  status: 'active' | 'dismissed' | 'automated'
 }
 
 export interface PatternSighting {
@@ -50,8 +48,8 @@ export class PatternRepository {
   addPattern(pattern: Pattern): void {
     this.db
       .prepare(
-        `INSERT OR IGNORE INTO patterns (id, name, description, apps, automation_idea, frequency, created_at, status)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+        `INSERT OR IGNORE INTO patterns (id, name, description, apps, automation_idea, created_at)
+         VALUES (?, ?, ?, ?, ?, ?)`,
       )
       .run(
         pattern.id,
@@ -59,9 +57,7 @@ export class PatternRepository {
         pattern.description,
         JSON.stringify(pattern.apps),
         pattern.automationIdea,
-        pattern.frequency,
         pattern.createdAt,
-        pattern.status,
       )
   }
 
@@ -82,7 +78,7 @@ export class PatternRepository {
     return row ? this.rowToPatternWithStats(row) : null
   }
 
-  getActivePatterns(): PatternWithStats[] {
+  getAllPatterns(): PatternWithStats[] {
     const rows = this.db
       .prepare(
         `SELECT p.*,
@@ -91,7 +87,6 @@ export class PatternRepository {
                 (SELECT confidence FROM pattern_sightings WHERE pattern_id = p.id ORDER BY detected_at DESC LIMIT 1) AS last_confidence
          FROM patterns p
          LEFT JOIN pattern_sightings s ON s.pattern_id = p.id
-         WHERE p.status = 'active'
          GROUP BY p.id
          ORDER BY sighting_count DESC`,
       )
@@ -117,10 +112,6 @@ export class PatternRepository {
       .all(like, like, like) as Record<string, unknown>[]
 
     return rows.map((row) => this.rowToPatternWithStats(row))
-  }
-
-  updateStatus(patternId: string, status: Pattern['status']): void {
-    this.db.prepare(`UPDATE patterns SET status = ? WHERE id = ?`).run(status, patternId)
   }
 
   patternCount(): number {
@@ -171,9 +162,7 @@ export class PatternRepository {
       description: row.description as string,
       apps: JSON.parse((row.apps as string) || '[]') as string[],
       automationIdea: row.automation_idea as string,
-      frequency: row.frequency as string,
       createdAt: row.created_at as number,
-      status: row.status as Pattern['status'],
       sightingCount: (row.sighting_count as number) || 0,
       lastSeenAt: (row.last_seen_at as number) ?? null,
       lastConfidence: (row.last_confidence as number) ?? null,

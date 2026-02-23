@@ -24,7 +24,7 @@ import { PATTERN_DETECTION_CONFIG } from '../src/shared/constants'
 function parseArgs() {
   const args = process.argv.slice(2)
   let dbPath = getDefaultDbPath()
-  let model = 'anthropic/claude-sonnet-4'
+  let model = PATTERN_DETECTION_CONFIG.MODEL
   let apiKey = process.env.OPENROUTER_API_KEY || ''
   let days = PATTERN_DETECTION_CONFIG.LOOKBACK_DAYS
 
@@ -98,13 +98,12 @@ async function main() {
     console.log(`Tokens:           ${result.tokenUsage.input} in / ${result.tokenUsage.output} out`)
 
     // Print active patterns
-    const active = storageService.patterns.getActivePatterns()
-    if (active.length > 0) {
-      console.log(`\n=== Active Patterns (${active.length}) ===`)
-      for (const p of active) {
+    const all = storageService.patterns.getAllPatterns()
+    if (all.length > 0) {
+      console.log(`\n=== Patterns (${all.length}) ===`)
+      for (const p of all) {
         console.log(`\n  ${p.name} (${p.sightingCount} sighting(s))`)
         console.log(`    Apps: ${p.apps.join(', ')}`)
-        console.log(`    Frequency: ${p.frequency}`)
         console.log(`    Automation: ${p.automationIdea}`)
         if (p.lastSeenAt) {
           console.log(`    Last seen: ${new Date(p.lastSeenAt).toISOString()}`)

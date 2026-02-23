@@ -41,7 +41,6 @@ interface Finding {
   name: string
   description: string
   apps: string[]
-  frequency: string
   automation_idea: string
   confidence: number
   evidence: string
@@ -79,7 +78,7 @@ function getDayBoundaries(daysBack: number): { start: number; end: number; label
   const day = new Date(now.getFullYear(), now.getMonth(), now.getDate() - daysBack)
   const start = day.getTime()
   const end = start + 24 * 60 * 60 * 1000 - 1
-  const label = day.toISOString().split('T')[0]
+  const label = `${day.getFullYear()}-${String(day.getMonth() + 1).padStart(2, '0')}-${String(day.getDate()).padStart(2, '0')}`
   return { start, end, label }
 }
 
@@ -101,7 +100,6 @@ function serializeExistingPatterns(patterns: PatternWithStats[]): object[] {
     name: p.name,
     description: p.description,
     apps: p.apps,
-    frequency: p.frequency,
     sighting_count: p.sightingCount,
   }))
 }
@@ -159,7 +157,6 @@ Output your findings as a JSON array:
     "name": "Short name for the automatable task",
     "description": "What the user does manually, step by step",
     "apps": ["App1", "App2"],
-    "frequency": "daily | multiple_times_daily | weekly | occasional",
     "automation_idea": "How this could be automated (specific: which API, what script, what tool)",
     "confidence": 0.0-1.0,
     "evidence": "What data you saw that supports this — be specific about times, window titles, summaries",
@@ -328,7 +325,7 @@ async function runDetection(
   const serialized = serializeActivities(activities)
 
   // 3. Load existing patterns for dedup context
-  const existingPatterns = storage.patterns.getActivePatterns()
+  const existingPatterns = storage.patterns.getAllPatterns()
   progress(`Loaded ${existingPatterns.length} existing patterns for dedup`)
 
   // 4. Build prompt and make single LLM call
@@ -386,9 +383,7 @@ async function runDetection(
       description: finding.description || '',
       apps: finding.apps || [],
       automationIdea: finding.automation_idea || '',
-      frequency: finding.frequency || 'occasional',
       createdAt: now,
-      status: 'active',
     }
 
     storage.patterns.addPattern(pattern)

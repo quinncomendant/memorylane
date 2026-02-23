@@ -11,12 +11,9 @@ export const migration: Migration = {
         description TEXT NOT NULL DEFAULT '',
         apps TEXT NOT NULL DEFAULT '[]',
         automation_idea TEXT NOT NULL DEFAULT '',
-        frequency TEXT NOT NULL DEFAULT 'occasional',
-        created_at INTEGER NOT NULL,
-        status TEXT NOT NULL DEFAULT 'active'
+        created_at INTEGER NOT NULL
       )
     `)
-    db.exec(`CREATE INDEX idx_patterns_status ON patterns(status)`)
 
     db.exec(`
       CREATE TABLE pattern_sightings (

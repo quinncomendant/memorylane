@@ -274,13 +274,13 @@ async function handleSearchContext(
     }
 
     // Run embedding generation and FTS in parallel
-    const [embedding, ftsResults] = await Promise.all([
-      processor.getEmbeddingService().generateEmbedding(query),
-      storage.activities.searchFTS(query, effectiveLimit, filters).catch((err) => {
-        log.warn('FTS search failed, falling back to vector-only:', err)
-        return []
-      }),
-    ])
+    let ftsResults: ReturnType<typeof storage.activities.searchFTS> = []
+    try {
+      ftsResults = storage.activities.searchFTS(query, effectiveLimit, filters)
+    } catch (err) {
+      log.warn('FTS search failed, falling back to vector-only:', err)
+    }
+    const embedding = await processor.getEmbeddingService().generateEmbedding(query)
     const vectorResults = storage.activities.searchVectors(embedding, effectiveLimit, filters)
 
     // Deduplicate: vector results first (preserves relevance order), then FTS extras

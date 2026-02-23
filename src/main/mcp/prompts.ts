@@ -98,7 +98,7 @@ export function registerPrompts(server: McpServer): void {
       title: 'Automate Patterns',
       description:
         'Review detected workflow patterns and generate Claude Code skill files for each ' +
-        'automatable pattern. The skills are written to .claude/skills/ so Claude can ' +
+        'automatable pattern so Claude can ' +
         'execute them automatically next time the pattern is triggered.',
       argsSchema: {
         focus: z

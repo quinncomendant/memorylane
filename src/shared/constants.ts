@@ -63,6 +63,14 @@ export const SCREEN_CAPTURER_CONFIG = {
   MAX_DIMENSION_PX: 1_920,
 }
 
+// Pattern Detection Configuration
+export const PATTERN_DETECTION_CONFIG = {
+  MODEL: 'moonshotai/kimi-k2.5',
+  LOOKBACK_DAYS: 1, // Analyze previous day's activities
+  MIN_ACTIVITIES: 50, // Minimum total activities in DB before first run
+  SETTLE_DELAY_MS: 60 * 1000, // 1 min after unlock before running
+}
+
 // Managed Key / Subscription Configuration
 export const MANAGED_KEY_CONFIG = {
   BACKEND_URL:

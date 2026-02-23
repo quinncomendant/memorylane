@@ -6,8 +6,11 @@ import { getDefaultDbPath } from '../paths'
 import log from '../logger'
 import { ensureMigrationsTable, runMigrations } from './migrator'
 import { ActivityRepository } from './activity-repository'
+import { PatternRepository } from './pattern-repository'
 
 export { ActivityRepository } from './activity-repository'
+export { PatternRepository } from './pattern-repository'
+export type { Pattern, PatternSighting, PatternWithStats } from './pattern-repository'
 export type { StoredActivity, ActivitySummary } from './types'
 
 /**
@@ -56,9 +59,10 @@ export class StorageService {
   private dbPath: string
   private db: Database.Database | null = null
   readonly activities: ActivityRepository
+  readonly patterns: PatternRepository
 
-  constructor(dbPath: string) {
-    this.dbPath = dbPath
+  constructor(dbPath?: string) {
+    this.dbPath = dbPath ?? getDefaultDbPath()
 
     const dir = path.dirname(this.dbPath)
     if (!fs.existsSync(dir)) {
@@ -78,6 +82,7 @@ export class StorageService {
 
       this.db = db
       this.activities = new ActivityRepository(db)
+      this.patterns = new PatternRepository(db)
       log.info('SQLite database initialized successfully')
     } catch (error) {
       db.close()

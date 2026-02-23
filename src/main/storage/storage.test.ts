@@ -345,7 +345,7 @@ describe('migration system', () => {
     }[]
     db.close()
 
-    expect(rows.length).toBe(3)
+    expect(rows.length).toBe(4)
     expect(rows[0].name).toBe('0001_initial_schema')
     expect(rows[1].name).toBe('0002_migrate_context_events')
     expect(rows[2].name).toBe('0003_fts_sync_triggers')
@@ -365,7 +365,7 @@ describe('migration system', () => {
     db.close()
 
     // Still exactly 3 rows — no duplicates
-    expect(rows.length).toBe(3)
+    expect(rows.length).toBe(4)
   })
 
   it('getMigrationStatus returns correct applied state after construction', () => {
@@ -378,7 +378,7 @@ describe('migration system', () => {
     const status = getMigrationStatus(db)
     db.close()
 
-    expect(status.length).toBe(3)
+    expect(status.length).toBe(4)
     for (const s of status) {
       expect(s.applied).toBe(true)
       expect(s.appliedAt).toBeGreaterThan(0)
@@ -393,7 +393,7 @@ describe('migration system', () => {
     const status = getMigrationStatus(db)
     db.close()
 
-    expect(status.length).toBe(3)
+    expect(status.length).toBe(4)
     for (const s of status) {
       expect(s.applied).toBe(false)
       expect(s.appliedAt).toBeNull()
@@ -453,7 +453,7 @@ describe('migration system', () => {
     ).count
     db.close()
 
-    expect(migrationRows.length).toBe(3)
+    expect(migrationRows.length).toBe(4)
     expect(migrationRows[1].name).toBe('0002_migrate_context_events')
     expect(migrationRows[2].name).toBe('0003_fts_sync_triggers')
     expect(activityCount).toBe(1)
@@ -505,7 +505,7 @@ describe('migration system', () => {
     }[]
     db.close()
 
-    expect(migrationRows.length).toBe(3)
+    expect(migrationRows.length).toBe(4)
   })
 })
 
@@ -639,7 +639,7 @@ describe('migration idempotency', () => {
     runMigrations(db)
 
     const rows = db.prepare('SELECT name FROM schema_migrations').all() as { name: string }[]
-    expect(rows.length).toBe(3)
+    expect(rows.length).toBe(4)
     db.close()
   })
 })

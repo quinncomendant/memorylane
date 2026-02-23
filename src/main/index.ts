@@ -10,6 +10,7 @@ import { config as loadEnv } from 'dotenv'
 import log from './logger'
 import { startPowerMonitoring, shouldPause } from './power-monitor'
 import { CaptureSettingsManager } from './settings/capture-settings-manager'
+import { PatternDetector } from './services/pattern-detector'
 import { createV2MainRuntime, type V2MainRuntime } from './v2/runtime'
 
 try {
@@ -29,6 +30,7 @@ app.on('window-all-closed', () => {
 })
 
 let runtime: V2MainRuntime | null = null
+let patternDetector: PatternDetector | null = null
 
 app.on('before-quit', () => {
   if (!runtime) return
@@ -67,6 +69,8 @@ app.on('ready', async () => {
       void sendStatusToRenderer()
     },
   })
+
+  patternDetector = new PatternDetector(runtime.storage, runtime.apiKeyManager)
 
   setupTray({
     capture: runtime.capture,
@@ -114,6 +118,7 @@ app.on('ready', async () => {
 
       log.info('[Main] Resuming capture (power state: active)')
       runtime.capture.startCapture()
+      patternDetector?.scheduleRun()
     },
   })
 

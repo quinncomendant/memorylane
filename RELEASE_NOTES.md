@@ -1,17 +1,20 @@
-# MemoryLane v0.11.0
+# MemoryLane v0.12.0
 
 MemoryLane is a macOS system tray app that captures your screen activity, processes it with OCR and AI summarization, and makes it searchable through an MCP server — giving AI assistants like Claude and Cursor memory of what you've been working on.
 
 ## What's Changed
 
-- **Native Swift screenshot module** — added a new native macOS screenshot capture path using Swift, replacing the Electron desktopCapturer dependency for faster, lower-overhead screen capture
-- **Fixed-interval ScreenCapturer** — new `ScreenCapturer` class that supports fixed-interval frame capture alongside the existing event-driven mode
-- **Configurable capture settings UI** — adjust visual change threshold, typing timeout, and scroll timeout directly from the main window (#28, closes #33)
-- **URL parsing fix** — fixed URL parsing in the bundled app that could cause failures in production builds
-- **Internal improvements** — better bundleId separation for dev/production builds, updated MCP prompt quality, increased max history size, added migration tooling and architecture documentation
+- **V2 runtime pipeline** — introduced a full v2 activity runtime with durable streams, coordinated extraction/production stages, and richer activity lifecycle handling
+- **Video-first semantic processing** — added ffmpeg-based activity video stitching and a semantic service that prefers stitched media with robust snapshot fallback behavior
+- **Pattern intelligence and MCP improvements** — added pattern detection infrastructure, storage/repository support, and MCP tool/prompt enhancements for better context retrieval
+- **Native capture hardening on macOS** — improved v2 screenshot capture via ScreenCaptureKit/CoreGraphics paths, focused-window display tracking, and transient-failure tolerance
+- **Reliability, performance, and test depth** — reduced capture/media footprint, improved cleanup/shutdown semantics, and added broad unit/integration coverage across the v2 stack
 
 ## Features
 
+- **V2 activity pipeline** — new runtime path for event/capture ingestion, activity extraction, transformation, and persistence
+- **Video-first activity understanding** — stitched activity clips for richer semantic interpretation with fallback to frame snapshots
+- **Pattern detection foundation** — stores reusable activity patterns for future higher-level context and analysis workflows
 - **Automatic updates** — background update checks with one-click install from the tray menu
 - **One-command install** — `curl | sh` installer that downloads, installs, and removes quarantine automatically
 - **Apple notarized** — the app is code-signed and Apple-notarized, no Gatekeeper warnings
@@ -57,4 +60,4 @@ After launching:
 
 ## Full Changelog
 
-https://github.com/deusXmachina-dev/memorylane/compare/v0.10.0...v0.11.0
+https://github.com/deusXmachina-dev/memorylane/compare/v0.11.0...v0.12.0

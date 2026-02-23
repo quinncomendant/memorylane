@@ -2,6 +2,7 @@ import { spawn } from 'child_process'
 import * as fs from 'fs'
 import * as os from 'os'
 import * as path from 'path'
+import log from '../../logger'
 import type {
   ActivityVideoAsset,
   ActivityVideoFrameInput,
@@ -12,6 +13,15 @@ const DEFAULT_FRAME_DURATION_MS = 1_000
 const FFMPEG_EXECUTABLE_ENV = 'MEMORYLANE_FFMPEG_EXECUTABLE'
 const FFMPEG_VIDEO_PRESET = 'veryfast'
 const FFMPEG_VIDEO_CRF = '28'
+const FFMPEG_VIDEOTOOLBOX_ENCODER = 'h264_videotoolbox'
+const FFMPEG_X264_ENCODER = 'libx264'
+// Chosen from local benchmarks as a good CPU/size tradeoff on macOS.
+const FFMPEG_MAC_VIDEOTOOLBOX_TARGET_BITRATE_KBPS = 200
+
+interface EncoderAttempt {
+  label: string
+  ffmpegArgs: string[]
+}
 
 function escapeConcatPath(filepath: string): string {
   return filepath.replace(/'/g, "'\\''")
@@ -113,6 +123,78 @@ function resolveFfmpegExecutable(): string {
   return resolveFfmpegStaticPath()
 }
 
+function buildFfmpegArgs(params: {
+  concatPath: string
+  outputPath: string
+  encoderArgs: string[]
+}): string[] {
+  const { concatPath, outputPath, encoderArgs } = params
+  return [
+    '-y',
+    '-hide_banner',
+    '-loglevel',
+    'error',
+    '-f',
+    'concat',
+    '-safe',
+    '0',
+    '-i',
+    concatPath,
+    ...encoderArgs,
+    '-vf',
+    'scale=trunc(iw/2)*2:trunc(ih/2)*2',
+    '-pix_fmt',
+    'yuv420p',
+    '-movflags',
+    '+faststart',
+    outputPath,
+  ]
+}
+
+function buildX264EncoderArgs(): string[] {
+  return ['-c:v', FFMPEG_X264_ENCODER, '-preset', FFMPEG_VIDEO_PRESET, '-crf', FFMPEG_VIDEO_CRF]
+}
+
+function buildVideoToolboxEncoderArgs(): string[] {
+  return [
+    '-c:v',
+    FFMPEG_VIDEOTOOLBOX_ENCODER,
+    '-b:v',
+    `${FFMPEG_MAC_VIDEOTOOLBOX_TARGET_BITRATE_KBPS}k`,
+    '-maxrate',
+    `${FFMPEG_MAC_VIDEOTOOLBOX_TARGET_BITRATE_KBPS}k`,
+    '-bufsize',
+    `${FFMPEG_MAC_VIDEOTOOLBOX_TARGET_BITRATE_KBPS * 2}k`,
+  ]
+}
+
+function buildEncoderAttempts(params: {
+  concatPath: string
+  outputPath: string
+}): EncoderAttempt[] {
+  const x264Attempt: EncoderAttempt = {
+    label: FFMPEG_X264_ENCODER,
+    ffmpegArgs: buildFfmpegArgs({
+      concatPath: params.concatPath,
+      outputPath: params.outputPath,
+      encoderArgs: buildX264EncoderArgs(),
+    }),
+  }
+
+  if (process.platform !== 'darwin') return [x264Attempt]
+
+  const vtAttempt: EncoderAttempt = {
+    label: FFMPEG_VIDEOTOOLBOX_ENCODER,
+    ffmpegArgs: buildFfmpegArgs({
+      concatPath: params.concatPath,
+      outputPath: params.outputPath,
+      encoderArgs: buildVideoToolboxEncoderArgs(),
+    }),
+  }
+
+  return [vtAttempt, x264Attempt]
+}
+
 function runFfmpeg(command: string, args: string[]): Promise<void> {
   return new Promise((resolve, reject) => {
     const proc = spawn(command, args, { stdio: ['ignore', 'pipe', 'pipe'] })
@@ -181,31 +263,30 @@ export class FfmpegVideoStitcher implements ActivityVideoStitcher {
     const ffmpegExecutable = resolveFfmpegExecutable()
 
     try {
-      await runFfmpeg(ffmpegExecutable, [
-        '-y',
-        '-hide_banner',
-        '-loglevel',
-        'error',
-        '-f',
-        'concat',
-        '-safe',
-        '0',
-        '-i',
-        concatPath,
-        '-c:v',
-        'libx264',
-        '-preset',
-        FFMPEG_VIDEO_PRESET,
-        '-crf',
-        FFMPEG_VIDEO_CRF,
-        '-vf',
-        'scale=trunc(iw/2)*2:trunc(ih/2)*2',
-        '-pix_fmt',
-        'yuv420p',
-        '-movflags',
-        '+faststart',
-        outputPath,
-      ])
+      const attempts = buildEncoderAttempts({ concatPath, outputPath })
+      let lastError: Error | null = null
+
+      for (let i = 0; i < attempts.length; i++) {
+        const attempt = attempts[i]
+        try {
+          if (i > 0) {
+            log.warn(
+              `[VideoStitcher] Falling back to ${attempt.label} after previous encoder failure`,
+            )
+          }
+          await runFfmpeg(ffmpegExecutable, attempt.ffmpegArgs)
+          lastError = null
+          break
+        } catch (error) {
+          lastError = error instanceof Error ? error : new Error(String(error))
+          if (i === attempts.length - 1) {
+            throw lastError
+          }
+          log.warn(
+            `[VideoStitcher] Encoder attempt ${attempt.label} failed, trying fallback: ${lastError.message}`,
+          )
+        }
+      }
     } finally {
       try {
         fs.unlinkSync(concatPath)

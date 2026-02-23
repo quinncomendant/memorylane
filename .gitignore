@@ -104,6 +104,7 @@ dist-electron/
 # Temporary files
 tmp/
 temp/
+.codex-tmp/
 
 # Editors
 .vscode/*
@@ -143,5 +144,5 @@ build/swift/
 build/ffmpeg/
 
 # Benchmarks
-benchmarks/
+/benchmarks/output/
 .benchmarks/

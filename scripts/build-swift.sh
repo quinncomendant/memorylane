@@ -21,9 +21,7 @@ swiftc -O \
 
 echo "Compiling screenshot.swift → build/swift/screenshot"
 swiftc -O \
-  -parse-as-library \
-  -target arm64-apple-macos14.0 \
-  -framework ScreenCaptureKit \
+  -target arm64-apple-macos13.0 \
   "$ROOT_DIR/src/main/v2/recorder/swift/screenshot.swift" \
   -o "$OUT_DIR/screenshot"
 

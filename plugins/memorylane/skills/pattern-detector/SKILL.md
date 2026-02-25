@@ -16,9 +16,12 @@ Replace business analyst interviews with ground-truth observation:
               ↓ Pattern Detector analyzes
 
 Process Documentation:
-1. "Model Evaluation" — 8-step loop across OpenRouter + Notion, 3x/week
-2. "PR Review Pipeline" — GitHub → Cursor → Terminal → GitHub, daily
-3. "Campaign Check" — Smartlead dashboard scan, 2-3x/day
+1. "Client Onboarding" — Email → CRM → billing system → welcome email,
+    per new client, ~20 min each, 3-4x/week
+2. "Weekly Revenue Report" — Stripe → Google Sheets → formulas → Slack,
+    every Monday, ~35 min
+3. "Expense Approval" — PDF review → policy check in browser → approve/reject
+    in expense tool, 10-15 per batch, twice a week
 
 Each process: exact steps, frequency, what varies between runs,
 what's constant, and a concrete automation path.
@@ -26,9 +29,9 @@ what's constant, and a concrete automation path.
 
 A business analyst interviews users and gets idealized descriptions. Users forget steps, omit workarounds, describe what they _think_ they do. MemoryLane captures what actually happens on screen — the real process, including:
 
-- **Steps users don't mention** — "I always check Slack first"
-- **Workarounds that became habit** — "I copy-paste from the CRM because the export is broken"
-- **Time users underestimate** — "I spend 20 min/day just switching between dashboards"
+- **Steps users don't mention** — "I always check the CRM before sending the welcome email"
+- **Workarounds that became habit** — "I copy-paste from the invoice PDF because the export doesn't include tax IDs"
+- **Time users underestimate** — "I spend 40 min/week just moving numbers between Stripe and Sheets"
 
 The output is what a BA would produce after a week of shadowing — except it's derived from actual screen data, not recall.
 
@@ -162,17 +165,6 @@ For each candidate with 3+ occurrences:
 1. **Widen the window** — `search_context(query)` with pattern-specific queries to check the full 30-day history. Does it hold up beyond the 7-day scan?
 2. **Zoom into details** — `get_activity_details(ids)` only for high-confidence candidates where the OCR text would reveal specifics needed for the automation suggestion. Keep this to a minimum.
 
-## Process Classification
-
-| Type                     | What it looks like                                    | Automation path                                          |
-| ------------------------ | ----------------------------------------------------- | -------------------------------------------------------- |
-| **Evaluation loop**      | Testing/comparing multiple options with same criteria | Batch script that runs all options, generates comparison |
-| **Monitoring check**     | Periodically checking a dashboard or status page      | Scheduled alert/digest, notify only on changes           |
-| **Data pipeline**        | Multi-step process moving data between tools          | End-to-end workflow (n8n, script, API chain)             |
-| **Iterative refinement** | Repeated small edits with preview cycles              | Better tooling, hot reload, templates                    |
-| **Manual data entry**    | Copying information between apps/screens              | API integration or sync between tools                    |
-| **Research gathering**   | Visiting multiple sources for related info            | Aggregation script or custom dashboard                   |
-
 ## Output
 
 Render results as inline HTML. Rank patterns by **automation impact** — frequency × time per loop × ease of automation.
@@ -200,11 +192,7 @@ Output this directly in your response. Repeat the pattern card block for each de
   <div
     style="border: 1px solid #e2e8f0; border-radius: 10px; padding: 20px 24px; margin-bottom: 16px; background: #fff;"
   >
-    <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 12px;">
-      <span
-        style="background: {type_color}; color: white; font-size: 11px; font-weight: 600; padding: 3px 10px; border-radius: 20px; text-transform: uppercase; letter-spacing: 0.5px;"
-        >{pattern_type}</span
-      >
+    <div style="margin-bottom: 12px;">
       <span style="font-size: 16px; font-weight: 600; color: #1a1a2e;">{pattern_name}</span>
     </div>
     <div style="font-size: 14px; color: #475569; line-height: 1.5; margin-bottom: 14px;">
@@ -309,17 +297,6 @@ Output this directly in your response. Repeat the pattern card block for each de
 
 ### Color Mappings
 
-**Type colors** for `{type_color}`:
-
-| Type                 | Color                |
-| -------------------- | -------------------- |
-| evaluation_loop      | `#6366f1` (indigo)   |
-| monitoring_check     | `#0ea5e9` (sky blue) |
-| data_pipeline        | `#8b5cf6` (violet)   |
-| iterative_refinement | `#f59e0b` (amber)    |
-| manual_data_entry    | `#ef4444` (red)      |
-| research_gathering   | `#10b981` (emerald)  |
-
 **Effort colors** for `{effort_color}`:
 
 | Effort | Color             |
@@ -330,40 +307,40 @@ Output this directly in your response. Repeat the pattern card block for each de
 
 ## Calibration Examples
 
-These show the level of specificity to aim for — across engineering, back-office, finance, and ops work.
+These show the level of specificity to aim for. Each example: observable screen behavior → concrete automation suggestion.
 
 ### Engineering & Product
 
-1. **Evaluation loop** — User tests 8 AI models one by one on OpenRouter, recording results in Notion after each test. → Batch API script that runs all models and generates a comparison table.
+1. User tests 8 AI models one by one on OpenRouter, recording results in Notion after each test. → Batch API script that runs all models and generates a comparison table.
 
-2. **Iterative refinement** — User makes small CSS changes, previews in browser, adjusts, previews again, sometimes discards everything. → Component playground or hot-reload setup.
+2. User makes small CSS changes, previews in browser, adjusts, previews again, sometimes discards everything. → Component playground or hot-reload setup.
 
-3. **Data pipeline** — User scrapes GitHub stargazers, cleans data in Sheets, imports to email tool, writes personalized emails with Claude. → End-to-end script from repo URL to campaign launch.
+3. User scrapes GitHub stargazers, cleans data in Sheets, imports to email tool, writes personalized emails with Claude. → End-to-end script from repo URL to campaign launch.
 
-4. **Monitoring check** — User opens Datadog dashboard 4–5 times/day to check error rates after a deploy. → Slack alert triggered by error rate threshold, with auto-rollback on spike.
+4. User opens Datadog dashboard 4–5 times/day to check error rates after a deploy. → Slack alert triggered by error rate threshold, with auto-rollback on spike.
 
 ### Finance & Accounting
 
-5. **Manual data entry** — User downloads bank statement CSV, opens QuickBooks, manually enters each transaction, cross-references against invoices in Google Drive. Every Monday morning, ~45 min. → Bank feed integration with auto-matching rules.
+5. User downloads bank statement CSV, opens QuickBooks, manually enters each transaction, cross-references against invoices in Google Drive. Every Monday morning, ~45 min. → Bank feed integration with auto-matching rules.
 
-6. **Data pipeline** — User pulls revenue numbers from Stripe dashboard, copies into a Google Sheet, applies formulas, then pastes the summary into a Slack channel for the weekly finance update. → Scheduled script that queries Stripe API, computes metrics, posts to Slack.
+6. User pulls revenue numbers from Stripe dashboard, copies into a Google Sheet, applies formulas, then pastes the summary into a Slack channel for the weekly finance update. → Scheduled script that queries Stripe API, computes metrics, posts to Slack.
 
-7. **Research gathering** — User checks 3 different currency exchange rate sites before processing international vendor payments, copies rates into a spreadsheet to compare. → API-based rate aggregator that auto-selects best rate at payment time.
+7. User checks 3 different currency exchange rate sites before processing international vendor payments, copies rates into a spreadsheet to compare. → API-based rate aggregator that auto-selects best rate at payment time.
 
-8. **Evaluation loop** — User reviews each expense report by opening the PDF, checking line items against policy in a separate browser tab, then entering approval/rejection in the expense tool. 10–15 reports per batch. → Policy-checking script that pre-flags violations, surfaces only exceptions for human review.
+8. User reviews each expense report by opening the PDF, checking line items against policy in a separate browser tab, then entering approval/rejection in the expense tool. 10–15 reports per batch. → Policy-checking script that pre-flags violations, surfaces only exceptions for human review.
 
 ### Operations & Back-Office
 
-9. **Manual data entry** — User receives client onboarding forms via email, manually copies fields (name, company, billing address, tax ID) into CRM, then into billing system, then sends a welcome email template with the same details. Per new client, ~20 min. → Intake form that auto-populates CRM + billing via API, triggers welcome email.
+9. User receives client onboarding forms via email, manually copies fields (name, company, billing address, tax ID) into CRM, then into billing system, then sends a welcome email template with the same details. Per new client, ~20 min. → Intake form that auto-populates CRM + billing via API, triggers welcome email.
 
-10. **Monitoring check** — User checks Zendesk queue every 2 hours, scans for high-priority tickets, copies ticket summaries into a Slack channel for the ops team. → Webhook that auto-posts P0/P1 tickets to Slack with summary and link.
+10. User checks Zendesk queue every 2 hours, scans for high-priority tickets, copies ticket summaries into a Slack channel for the ops team. → Webhook that auto-posts P0/P1 tickets to Slack with summary and link.
 
-11. **Data pipeline** — User exports weekly sales data from CRM, imports into Excel, builds a pivot table, screenshots the chart, pastes into a PowerPoint slide deck for the Monday review. Every Friday, ~1 hour. → Automated report generation from CRM API to formatted slides.
+11. User exports weekly sales data from CRM, imports into Excel, builds a pivot table, screenshots the chart, pastes into a PowerPoint slide deck for the Monday review. Every Friday, ~1 hour. → Automated report generation from CRM API to formatted slides.
 
-12. **Research gathering** — User checks LinkedIn, Crunchbase, and the company website before every sales call to build a prospect brief in Notion. 3–5 calls/day, ~10 min each. → Enrichment script that auto-generates prospect briefs from company domain.
+12. User checks LinkedIn, Crunchbase, and the company website before every sales call to build a prospect brief in Notion. 3–5 calls/day, ~10 min each. → Enrichment script that auto-generates prospect briefs from company domain.
 
 ### HR & Compliance
 
-13. **Manual data entry** — User receives signed offer letters via DocuSign, downloads PDF, enters start date + salary + role into HRIS, then creates accounts in Slack + Google Workspace + Jira. Per new hire, ~30 min. → Webhook on DocuSign completion triggers HRIS entry + account provisioning.
+13. User receives signed offer letters via DocuSign, downloads PDF, enters start date + salary + role into HRIS, then creates accounts in Slack + Google Workspace + Jira. Per new hire, ~30 min. → Webhook on DocuSign completion triggers HRIS entry + account provisioning.
 
-14. **Monitoring check** — User opens the compliance training dashboard weekly to check which employees haven't completed required training, then sends individual reminder emails. → Scheduled check with auto-reminder emails for overdue training.
+14. User opens the compliance training dashboard weekly to check which employees haven't completed required training, then sends individual reminder emails. → Scheduled check with auto-reminder emails for overdue training.

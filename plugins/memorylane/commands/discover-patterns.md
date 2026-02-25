@@ -15,8 +15,8 @@ Pattern detection requires **sequential context** — the order of app switches 
 
 Iterate backwards, one day at a time:
 
-1. `browse_timeline(startTime="today", endTime="now", limit=200, sampling="uniform")`
-2. `browse_timeline(startTime="2 days ago", endTime="1 day ago", limit=200, sampling="uniform")`
+1. `browse_timeline(startTime="today", endTime="now", limit=50, sampling="uniform")`
+2. `browse_timeline(startTime="2 days ago", endTime="1 day ago", limit=50, sampling="uniform")`
 3. Continue for at least 7 days.
 4. If < 10 total activities after 7 days, extend to 14 days.
 5. If < 5 total activities after 14 days, tell the user there isn't enough data yet. Stop.
@@ -91,9 +91,9 @@ For each candidate with 3+ occurrences:
 
 ### Step 4 — Present Results as HTML
 
-Render results as inline HTML. Rank patterns by **automation impact** — frequency x time per loop x ease of automation.
+Rank patterns by **automation impact** — frequency x time per loop x ease of automation.
 
-Output this directly in your response. Repeat the pattern card block for each detected pattern.
+**Write the HTML to a file** — save it as `pattern-report.html` in the current working directory using the Write tool. Do NOT output raw HTML in your response. After writing the file, tell the user the report has been saved and they can open it. Repeat the pattern card block for each detected pattern.
 
 ```html
 <div
@@ -244,14 +244,54 @@ If no patterns survive the filter, say so directly: "No automatable patterns fou
 
 ### Step 5 — Prompt for Next Steps
 
-After presenting the HTML report, ask the user what they'd like to do next. Offer these options:
+After saving the HTML report, use the `AskUserQuestion` tool to present two interactive prompts. Build the first question dynamically from the discovered patterns — each pattern becomes a selectable option.
 
-1. Generate a **PDD** (process description document) for a specific pattern — via `/pdd`
-2. Create an **automation runbook** for a specific pattern — via `/create-runbook`
-3. Both (PDD + runbook) for a pattern
-4. Nothing for now
+```json
+{
+  "questions": [
+    {
+      "question": "Which patterns are interesting to you?",
+      "header": "Patterns",
+      "options": [
+        {
+          "label": "1. {pattern_name}",
+          "description": "{short_description}"
+        },
+        {
+          "label": "2. {pattern_name}",
+          "description": "{short_description}"
+        }
+      ],
+      "multiSelect": true
+    },
+    {
+      "question": "What should I do next with the selected patterns?",
+      "header": "Next step",
+      "options": [
+        {
+          "label": "Generate PDD",
+          "description": "Create a process description document — via /pdd"
+        },
+        {
+          "label": "Create runbook",
+          "description": "Create an automation runbook — via /create-runbook"
+        },
+        {
+          "label": "Both",
+          "description": "Generate both a PDD and an automation runbook"
+        },
+        {
+          "label": "Nothing for now",
+          "description": "Skip — I'll come back to this later"
+        }
+      ],
+      "multiSelect": false
+    }
+  ]
+}
+```
 
-Tell them to reference patterns by number from the report.
+Generate one option per discovered pattern in the first question (up to 4 — if more than 4 patterns, list the top 4 by automation impact and mention the rest in descriptions). Then invoke the corresponding command for each selected pattern.
 
 ## Calibration Examples
 

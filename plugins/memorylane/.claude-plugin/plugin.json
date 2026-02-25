@@ -6,10 +6,6 @@
     "name": "MemoryLane Team",
     "email": "hello@trymemorylane.com"
   },
-  "homepage": "https://trymemorylane.com",
-  "repository": "https://github.com/deusXmachina-dev/memorylane",
-  "category": "productivity",
-  "keywords": ["productivity", "screen-recording", "activity-tracking", "automation"],
   "commands": ["./commands/"],
   "mcpServers": {
     "memorylane": {

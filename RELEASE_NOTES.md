@@ -1,10 +1,13 @@
-# MemoryLane v0.12.1
+# MemoryLane v0.13.0
 
 MemoryLane is a macOS system tray app that captures your screen activity, processes it with OCR and AI summarization, and makes it searchable through an MCP server — giving AI assistants like Claude and Cursor memory of what you've been working on.
 
 ## What's Changed
 
-- **Fixed auto updater** — resolved an issue where the automatic update mechanism could fail to download and apply updates correctly
+- **Windows app watcher backend (preview)** — added a native Rust sidecar for window/activity monitoring with recorder display routing and packaging integration
+- **Database export and backup** — added a UI flow to export local database contents as a zip backup (`closes #48`)
+- **Capture and stitching reliability improvements** — removed hardcoded FFmpeg thread limits, improved screenshot capture internals, and expanded recorder/video test coverage
+- **Tray UX improvement** — added a full-size inverted tray icon asset for better menu bar visibility in more themes
 
 ## Features
 
@@ -29,6 +32,8 @@ MemoryLane is a macOS system tray app that captures your screen activity, proces
 - **Usage tracking** — monitors API requests, token usage, and costs
 - **Richer activity summaries** — improved summary quality for timeline and search context questions
 - **Windows OCR (preview)** — native OCR path available for Windows preview setups
+- **Windows app watcher integration (preview)** — recorder support for the native watcher backend with unit/e2e coverage and build packaging
+- **Database export from settings** — export local data from the app UI for backup and portability
 
 ## Known Issues & Limitations
 
@@ -56,4 +61,4 @@ After launching:
 
 ## Full Changelog
 
-https://github.com/deusXmachina-dev/memorylane/compare/v0.12.0...v0.12.1
+https://github.com/deusXmachina-dev/memorylane/compare/v0.12.1...v0.13.0

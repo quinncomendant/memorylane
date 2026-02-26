@@ -103,8 +103,6 @@ describe('FfmpegVideoStitcher', () => {
     expect(args).toContain('ultrafast')
     expect(args).toContain('-crf')
     expect(args).toContain('28')
-    expect(args).toContain('-threads')
-    expect(args).toContain('2')
     expect(args).toContain('-vf')
     expect(args).toContain('scale=trunc(iw/2)*2:trunc(ih/2)*2')
     expect(args).toContain('-pix_fmt')

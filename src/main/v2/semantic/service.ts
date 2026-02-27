@@ -259,11 +259,11 @@ export class V2ActivitySemanticService implements ActivitySemanticService {
     const selectedSnapshots = await selectSnapshotFrames({
       frames: input.activity.frames,
       maxSnapshots: snapshotCap,
-      anchorTimestamps: [
-        input.activity.startTimestamp,
-        ...input.activity.interactions.map((interaction) => interaction.timestamp),
-        input.activity.endTimestamp,
-      ],
+      startAnchorTimestamp: input.activity.startTimestamp,
+      endAnchorTimestamp: input.activity.endTimestamp,
+      interactionAnchorTimestamps: input.activity.interactions.map(
+        (interaction) => interaction.timestamp,
+      ),
       visualThresholdPercent: VISUAL_DETECTOR_CONFIG.DHASH_THRESHOLD_PERCENT,
     })
     diagnostics.selectedSnapshotPaths = selectedSnapshots.map((frame) => frame.frame.filepath)

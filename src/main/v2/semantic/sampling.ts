@@ -5,10 +5,19 @@ import { dHashDifferencePercent, loadImageDHash } from './visual-diff'
 export async function selectSnapshotFrames(params: {
   frames: V2ActivityFrame[]
   maxSnapshots: number
-  anchorTimestamps?: number[]
+  interactionAnchorTimestamps?: number[]
+  startAnchorTimestamp?: number
+  endAnchorTimestamp?: number
   visualThresholdPercent?: number
 }): Promise<V2ActivityFrame[]> {
-  const { frames, maxSnapshots, anchorTimestamps = [], visualThresholdPercent } = params
+  const {
+    frames,
+    maxSnapshots,
+    interactionAnchorTimestamps = [],
+    startAnchorTimestamp,
+    endAnchorTimestamp,
+    visualThresholdPercent,
+  } = params
 
   const available = frames
     .filter((frame) => fs.existsSync(frame.frame.filepath))
@@ -29,8 +38,23 @@ export async function selectSnapshotFrames(params: {
     return [available[0]]
   }
 
-  const anchors = uniqueSortedTimestamps(anchorTimestamps)
+  const anchors = uniqueSortedTimestamps(interactionAnchorTimestamps)
   const selectedByKey = new Map<string, V2ActivityFrame>()
+
+  if (startAnchorTimestamp !== undefined) {
+    const firstAtOrAfter = findFirstFrameAtOrAfter(available, startAnchorTimestamp)
+    if (firstAtOrAfter) {
+      selectedByKey.set(frameKey(firstAtOrAfter), firstAtOrAfter)
+    }
+  }
+
+  if (endAnchorTimestamp !== undefined) {
+    const lastAtOrBefore = findLastFrameAtOrBefore(available, endAnchorTimestamp)
+    if (lastAtOrBefore) {
+      selectedByKey.set(frameKey(lastAtOrBefore), lastAtOrBefore)
+    }
+  }
+
   for (const anchor of anchors) {
     const nearest = findNearestFrame(available, anchor)
     if (!nearest) continue
@@ -38,8 +62,14 @@ export async function selectSnapshotFrames(params: {
   }
 
   // Keep timeline boundaries stable regardless of interaction density.
-  selectedByKey.set(frameKey(available[0]), available[0])
-  selectedByKey.set(frameKey(available[available.length - 1]), available[available.length - 1])
+  // When explicit start/end anchors are provided, preserve their directionality
+  // semantics instead of force-including potentially stale boundary frames.
+  if (startAnchorTimestamp === undefined) {
+    selectedByKey.set(frameKey(available[0]), available[0])
+  }
+  if (endAnchorTimestamp === undefined) {
+    selectedByKey.set(frameKey(available[available.length - 1]), available[available.length - 1])
+  }
 
   let selected = [...selectedByKey.values()].sort((left, right) => {
     if (left.frame.timestamp !== right.frame.timestamp) {
@@ -79,6 +109,41 @@ function findNearestFrame(
   const leftDelta = Math.abs(left.frame.timestamp - timestamp)
   if (leftDelta <= rightDelta) return left
   return right
+}
+
+function findFirstFrameAtOrAfter(
+  sortedFrames: V2ActivityFrame[],
+  timestamp: number,
+): V2ActivityFrame | undefined {
+  let lo = 0
+  let hi = sortedFrames.length
+  while (lo < hi) {
+    const mid = Math.floor((lo + hi) / 2)
+    if (sortedFrames[mid].frame.timestamp < timestamp) {
+      lo = mid + 1
+    } else {
+      hi = mid
+    }
+  }
+  return lo < sortedFrames.length ? sortedFrames[lo] : undefined
+}
+
+function findLastFrameAtOrBefore(
+  sortedFrames: V2ActivityFrame[],
+  timestamp: number,
+): V2ActivityFrame | undefined {
+  let lo = 0
+  let hi = sortedFrames.length
+  while (lo < hi) {
+    const mid = Math.floor((lo + hi) / 2)
+    if (sortedFrames[mid].frame.timestamp <= timestamp) {
+      lo = mid + 1
+    } else {
+      hi = mid
+    }
+  }
+  const idx = lo - 1
+  return idx >= 0 ? sortedFrames[idx] : undefined
 }
 
 async function applyVisualThreshold(

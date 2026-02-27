@@ -1,12 +1,14 @@
 import * as fs from 'fs'
 import type { V2ActivityFrame } from '../activity-types'
+import { dHashDifferencePercent, loadImageDHash } from './visual-diff'
 
-export function selectSnapshotFrames(params: {
+export async function selectSnapshotFrames(params: {
   frames: V2ActivityFrame[]
   maxSnapshots: number
-  minSnapshotGapMs: number
-}): V2ActivityFrame[] {
-  const { frames, maxSnapshots, minSnapshotGapMs } = params
+  anchorTimestamps?: number[]
+  visualThresholdPercent?: number
+}): Promise<V2ActivityFrame[]> {
+  const { frames, maxSnapshots, anchorTimestamps = [], visualThresholdPercent } = params
 
   const available = frames
     .filter((frame) => fs.existsSync(frame.frame.filepath))
@@ -21,37 +23,151 @@ export function selectSnapshotFrames(params: {
     return []
   }
 
-  if (available.length === 1 || maxSnapshots === 1) {
+  const normalizedMaxSnapshots =
+    Number.isInteger(maxSnapshots) && maxSnapshots > 0 ? maxSnapshots : 1
+  if (available.length === 1 || normalizedMaxSnapshots === 1) {
     return [available[0]]
   }
 
-  const first = available[0]
-  const last = available[available.length - 1]
+  const anchors = uniqueSortedTimestamps(anchorTimestamps)
+  const selectedByKey = new Map<string, V2ActivityFrame>()
+  for (const anchor of anchors) {
+    const nearest = findNearestFrame(available, anchor)
+    if (!nearest) continue
+    selectedByKey.set(frameKey(nearest), nearest)
+  }
 
-  const selected: V2ActivityFrame[] = [first]
-  let lastSelectedTs = first.frame.timestamp
+  // Keep timeline boundaries stable regardless of interaction density.
+  selectedByKey.set(frameKey(available[0]), available[0])
+  selectedByKey.set(frameKey(available[available.length - 1]), available[available.length - 1])
 
-  const middle = available.slice(1, -1)
-  for (const frame of middle) {
-    if (selected.length >= maxSnapshots - 1) {
-      break
+  let selected = [...selectedByKey.values()].sort((left, right) => {
+    if (left.frame.timestamp !== right.frame.timestamp) {
+      return left.frame.timestamp - right.frame.timestamp
     }
-    if (frame.frame.timestamp - lastSelectedTs < minSnapshotGapMs) {
+    return left.frame.sequenceNumber - right.frame.sequenceNumber
+  })
+
+  selected = await applyVisualThreshold(selected, visualThresholdPercent ?? 0)
+  selected = capSelectedSnapshots(selected, normalizedMaxSnapshots)
+
+  return selected
+}
+
+function findNearestFrame(
+  sortedFrames: V2ActivityFrame[],
+  timestamp: number,
+): V2ActivityFrame | undefined {
+  if (sortedFrames.length === 0) return undefined
+
+  let lo = 0
+  let hi = sortedFrames.length - 1
+  while (lo <= hi) {
+    const mid = Math.floor((lo + hi) / 2)
+    const midTs = sortedFrames[mid].frame.timestamp
+    if (midTs === timestamp) return sortedFrames[mid]
+    if (midTs < timestamp) {
+      lo = mid + 1
+    } else {
+      hi = mid - 1
+    }
+  }
+
+  const right = sortedFrames[Math.min(lo, sortedFrames.length - 1)]
+  const left = sortedFrames[Math.max(hi, 0)]
+  const rightDelta = Math.abs(right.frame.timestamp - timestamp)
+  const leftDelta = Math.abs(left.frame.timestamp - timestamp)
+  if (leftDelta <= rightDelta) return left
+  return right
+}
+
+async function applyVisualThreshold(
+  frames: V2ActivityFrame[],
+  visualThresholdPercent: number,
+): Promise<V2ActivityFrame[]> {
+  if (frames.length <= 2 || visualThresholdPercent <= 0) {
+    return frames
+  }
+
+  const hashCache = new Map<string, string | null>()
+  const getHash = async (filepath: string): Promise<string | null> => {
+    if (!hashCache.has(filepath)) {
+      hashCache.set(filepath, await loadImageDHash(filepath))
+    }
+    return hashCache.get(filepath) ?? null
+  }
+
+  const kept: V2ActivityFrame[] = [frames[0]]
+  for (let i = 1; i < frames.length - 1; i++) {
+    const previous = kept[kept.length - 1]
+    const candidate = frames[i]
+    const [leftHash, rightHash] = await Promise.all([
+      getHash(previous.frame.filepath),
+      getHash(candidate.frame.filepath),
+    ])
+
+    if (!leftHash || !rightHash) {
+      kept.push(candidate)
       continue
     }
 
-    selected.push(frame)
-    lastSelectedTs = frame.frame.timestamp
+    const difference = dHashDifferencePercent(leftHash, rightHash)
+    if (difference === null || difference >= visualThresholdPercent) {
+      kept.push(candidate)
+    }
   }
 
-  const alreadyHasLast = selected.some(
-    (frame) =>
-      frame.frame.timestamp === last.frame.timestamp &&
-      frame.frame.filepath === last.frame.filepath,
-  )
-  if (!alreadyHasLast && selected.length < maxSnapshots) {
-    selected.push(last)
+  const last = frames[frames.length - 1]
+  if (frameKey(kept[kept.length - 1]) !== frameKey(last)) {
+    kept.push(last)
   }
 
-  return selected
+  return kept
+}
+
+function capSelectedSnapshots(frames: V2ActivityFrame[], maxSnapshots: number): V2ActivityFrame[] {
+  if (frames.length <= maxSnapshots) {
+    return frames
+  }
+
+  const first = frames[0]
+  const last = frames[frames.length - 1]
+  const middle = frames.slice(1, -1)
+  const middleSlots = Math.max(maxSnapshots - 2, 0)
+
+  const result: V2ActivityFrame[] = [first]
+  if (middleSlots > 0 && middle.length > 0) {
+    const step = (middle.length - 1) / Math.max(middleSlots - 1, 1)
+    for (let i = 0; i < middleSlots && i < middle.length; i++) {
+      result.push(middle[Math.round(i * step)])
+    }
+  }
+
+  if (maxSnapshots > 1) {
+    result.push(last)
+  }
+
+  return dedupeFrames(result)
+}
+
+function dedupeFrames(frames: V2ActivityFrame[]): V2ActivityFrame[] {
+  const seen = new Set<string>()
+  const deduped: V2ActivityFrame[] = []
+  for (const frame of frames) {
+    const key = frameKey(frame)
+    if (seen.has(key)) continue
+    seen.add(key)
+    deduped.push(frame)
+  }
+  return deduped
+}
+
+function uniqueSortedTimestamps(values: number[]): number[] {
+  const unique = [...new Set(values.filter((value) => Number.isFinite(value)))]
+  unique.sort((left, right) => left - right)
+  return unique
+}
+
+function frameKey(frame: V2ActivityFrame): string {
+  return `${frame.frame.filepath}:${frame.frame.timestamp}:${frame.frame.sequenceNumber}`
 }

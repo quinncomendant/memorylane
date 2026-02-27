@@ -39,6 +39,10 @@ interface MainWindowDependencies {
     startCapture: () => void
     stopCapture: () => void
     forceClose: () => Promise<void>
+    updateActivityWindowConfig: (input: {
+      minActivityDurationMs: number
+      maxActivityDurationMs: number
+    }) => void
   }
   storage: StorageService
   usageTracker: UsageTracker
@@ -331,9 +335,12 @@ export function initMainWindowIPC(dependencies: MainWindowDependencies): void {
       try {
         deps.captureSettingsManager.save(partial)
         deps.captureSettingsManager.applyToConstants()
-        deps.semanticService.updatePipelinePreference(
-          deps.captureSettingsManager.get().semanticPipelineMode,
-        )
+        const updated = deps.captureSettingsManager.get()
+        deps.capture.updateActivityWindowConfig({
+          minActivityDurationMs: updated.minActivityDurationMs,
+          maxActivityDurationMs: updated.maxActivityDurationMs,
+        })
+        deps.semanticService.updatePipelinePreference(updated.semanticPipelineMode)
         return { success: true }
       } catch (error) {
         const message = error instanceof Error ? error.message : 'Unknown error'
@@ -347,9 +354,12 @@ export function initMainWindowIPC(dependencies: MainWindowDependencies): void {
     try {
       deps.captureSettingsManager.reset()
       deps.captureSettingsManager.applyToConstants()
-      deps.semanticService.updatePipelinePreference(
-        deps.captureSettingsManager.get().semanticPipelineMode,
-      )
+      const updated = deps.captureSettingsManager.get()
+      deps.capture.updateActivityWindowConfig({
+        minActivityDurationMs: updated.minActivityDurationMs,
+        maxActivityDurationMs: updated.maxActivityDurationMs,
+      })
+      deps.semanticService.updatePipelinePreference(updated.semanticPipelineMode)
       return { success: true }
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Unknown error'

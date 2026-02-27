@@ -66,8 +66,6 @@ export interface V2ActivitySemanticServiceConfig {
   videoModels?: string[]
   snapshotModels?: string[]
   pipelinePreference?: SemanticPipelinePreference
-  maxSnapshots?: number
-  minSnapshotGapMs?: number
   maxVideoBytes?: number
   requestTimeoutMs?: number
   usageTracker?: UsageTrackerLike

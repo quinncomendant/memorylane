@@ -1,4 +1,5 @@
 import { OpenRouter } from '@openrouter/sdk'
+import { ACTIVITY_CONFIG, VISUAL_DETECTOR_CONFIG } from '@constants'
 import log from '../../logger'
 import { UsageTracker } from '../../services/usage-tracker'
 import type { V2Activity } from '../activity-types'
@@ -28,11 +29,9 @@ import type {
 } from './types'
 
 export class V2ActivitySemanticService implements ActivitySemanticService {
-  private client: SemanticChatClient | null
+  private client: SemanticChatClient | null = null
   private readonly videoModels: string[]
   private readonly snapshotModels: string[]
-  private readonly maxSnapshots: number
-  private readonly minSnapshotGapMs: number
   private readonly maxVideoBytes: number
   private readonly requestTimeoutMs: number
   private pipelinePreference: SemanticPipelinePreference
@@ -54,20 +53,12 @@ export class V2ActivitySemanticService implements ActivitySemanticService {
     this.snapshotModels = config?.snapshotModels?.length
       ? [...config.snapshotModels]
       : [...DEFAULT_SNAPSHOT_MODELS]
-    this.maxSnapshots = config?.maxSnapshots ?? 6
-    this.minSnapshotGapMs = config?.minSnapshotGapMs ?? 5_000
     this.maxVideoBytes = config?.maxVideoBytes ?? 25 * 1024 * 1024
     this.requestTimeoutMs = config?.requestTimeoutMs ?? 45_000
     this.pipelinePreference = this.normalizePipelinePreference(config?.pipelinePreference)
     this.usageTracker = config?.usageTracker ?? new UsageTracker()
     this.debugDumper = config?.debugDumper
 
-    if (!Number.isInteger(this.maxSnapshots) || this.maxSnapshots <= 0) {
-      throw new Error('maxSnapshots must be a positive integer')
-    }
-    if (!Number.isFinite(this.minSnapshotGapMs) || this.minSnapshotGapMs < 0) {
-      throw new Error('minSnapshotGapMs must be >= 0')
-    }
     if (!Number.isFinite(this.maxVideoBytes) || this.maxVideoBytes <= 0) {
       throw new Error('maxVideoBytes must be > 0')
     }
@@ -264,10 +255,16 @@ export class V2ActivitySemanticService implements ActivitySemanticService {
       return ''
     }
 
-    const selectedSnapshots = selectSnapshotFrames({
+    const snapshotCap = this.resolveSnapshotCap()
+    const selectedSnapshots = await selectSnapshotFrames({
       frames: input.activity.frames,
-      maxSnapshots: this.maxSnapshots,
-      minSnapshotGapMs: this.minSnapshotGapMs,
+      maxSnapshots: snapshotCap,
+      anchorTimestamps: [
+        input.activity.startTimestamp,
+        ...input.activity.interactions.map((interaction) => interaction.timestamp),
+        input.activity.endTimestamp,
+      ],
+      visualThresholdPercent: VISUAL_DETECTOR_CONFIG.DHASH_THRESHOLD_PERCENT,
     })
     diagnostics.selectedSnapshotPaths = selectedSnapshots.map((frame) => frame.frame.filepath)
 
@@ -410,6 +407,14 @@ export class V2ActivitySemanticService implements ActivitySemanticService {
       return preference
     }
     return 'auto'
+  }
+
+  private resolveSnapshotCap(): number {
+    const fromSettings = ACTIVITY_CONFIG.MAX_SCREENSHOTS_FOR_LLM
+    if (Number.isInteger(fromSettings) && fromSettings > 0) {
+      return fromSettings
+    }
+    return 1
   }
 
   private dumpRoundTripSafe(input: {

@@ -24,6 +24,10 @@ export interface V2PipelineHarness {
   start(): Promise<void>
   stop(): Promise<void>
   handleEvent(event: InteractionContext): void
+  updateActivityWindowConfig(input: {
+    minActivityDurationMs: number
+    maxActivityDurationMs: number
+  }): void
 }
 
 export function createV2PipelineHarness(params: {
@@ -112,6 +116,12 @@ export function createV2PipelineHarness(params: {
         screenCapturer.setDisplayId(event.displayId)
       }
       eventCapturer.handleEvent(event)
+    },
+    updateActivityWindowConfig(input) {
+      activityProducer.updateActivityWindowConfig({
+        ...input,
+        frameBufferRetentionMs: Math.max(input.maxActivityDurationMs * 2, 1),
+      })
     },
   }
 }

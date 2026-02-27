@@ -26,6 +26,8 @@ export function buildSemanticPrompt(activity: V2Activity, mode: SemanticMode): s
   prompt +=
     '- Do NOT exaggerate. Switching files/tabs = browsing, not editing. Opening a file/page = reviewing, not working on it.\n'
   prompt +=
+    '- Distinguish preparation from completion. Seeing a form, dialog, or compose window being filled out is NOT evidence it was submitted. Without visible confirmation (success toast, page redirect, confirmation screen), use preparatory verbs like "started," "drafted," "filled out," "was setting up" — NOT completion verbs like "sent," "submitted," "invited," "created."\n'
+  prompt +=
     '- Describe what changed over time: new code, different tabs/pages, updated content, or navigation.\n'
   prompt += '- If evidence is partial, hedge briefly instead of over-claiming.\n'
   prompt +=

@@ -217,11 +217,8 @@ export function AdvancedSettingsPage({ onBack }: { onBack: () => void }): React.
                 <div className="space-y-2">
                   <div className="flex items-center justify-between gap-3">
                     <div className="space-y-1">
-                      <p className="text-xs font-medium text-muted-foreground">Launch at login</p>
-                      <p className="text-xs text-muted-foreground">
-                        Packaged macOS and Windows builds can start automatically and stay hidden in
-                        the tray. Development builds save the preference but never register a login
-                        item.
+                      <p className="text-xs font-medium text-muted-foreground">
+                        Should the app start on login?
                       </p>
                     </div>
                     <div className="grid shrink-0 grid-cols-2 gap-2">
@@ -241,9 +238,6 @@ export function AdvancedSettingsPage({ onBack }: { onBack: () => void }): React.
                       </Button>
                     </div>
                   </div>
-                  <p className="text-xs text-muted-foreground">
-                    Some operating systems may still require approval in system startup settings.
-                  </p>
                 </div>
               </div>
             )}

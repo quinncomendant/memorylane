@@ -12,7 +12,7 @@ MemoryLane is a macOS system tray app that captures your screen activity, proces
 
 ## Features
 
-- **Launch at login enabled by default on fresh installs** — packaged macOS and Windows builds can start automatically and remain hidden in the tray, while still being user-configurable
+- **Launch at login**
 - **Persistent capture preference** — remembers whether capture should resume after restart or wake
 - **V2 activity pipeline** — new runtime path for event/capture ingestion, activity extraction, transformation, and persistence
 - **Video-first activity understanding** — stitched activity clips for richer semantic interpretation with fallback to frame snapshots

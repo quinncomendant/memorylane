@@ -23,7 +23,7 @@ function createMockChildProcess(): MockChildProcess {
   return processEmitter
 }
 
-function manifestFromSpawnArgs(args: string[]): string {
+function manifestFromSpawnArgs(args: readonly string[]): string {
   const concatPath = args[args.indexOf('-i') + 1]
   return fs.readFileSync(concatPath, 'utf8')
 }
@@ -97,8 +97,10 @@ describe('FfmpegVideoStitcher', () => {
     expect(args).toContain('0')
     expect(args).toContain('-c:v')
     expect(args).toContain('libx264')
+    expect(args).toContain('-threads')
+    expect(args).toContain('1')
     expect(args).toContain('-preset')
-    expect(args).toContain('veryfast')
+    expect(args).toContain('ultrafast')
     expect(args).toContain('-crf')
     expect(args).toContain('28')
     expect(args).toContain('-vf')

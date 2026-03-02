@@ -1,7 +1,7 @@
 import * as fs from 'fs'
 import * as path from 'path'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
-import { captureDesktop } from './native-screenshot'
+import { ScreenshotDaemon, type CapturedFrame } from './native-screenshot'
 
 const RUN_INTEGRATION =
   process.platform === 'darwin' && process.env.RUN_NATIVE_SCREENSHOT_INTEGRATION === '1'
@@ -11,17 +11,24 @@ const SCREENSHOT_BINARY_PATH = path.resolve(process.cwd(), 'build', 'swift', 'sc
 const OUTPUT_ROOT_DIR = path.resolve(process.cwd(), '.debug-native-screenshot')
 const RUN_OUTPUT_DIR = path.join(OUTPUT_ROOT_DIR, new Date().toISOString().replace(/[:.]/g, '-'))
 
-const PNG_SIGNATURE = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])
+const JPEG_SIGNATURE = Buffer.from([0xff, 0xd8, 0xff])
 
-function assertPng(pathname: string): void {
+function assertJpeg(pathname: string): void {
   expect(fs.existsSync(pathname)).toBe(true)
   const bytes = fs.readFileSync(pathname)
-  expect(bytes.length).toBeGreaterThan(PNG_SIGNATURE.length)
-  expect(bytes.subarray(0, PNG_SIGNATURE.length).equals(PNG_SIGNATURE)).toBe(true)
+  expect(bytes.length).toBeGreaterThan(JPEG_SIGNATURE.length)
+  expect(bytes.subarray(0, JPEG_SIGNATURE.length).equals(JPEG_SIGNATURE)).toBe(true)
 }
 
-describeIntegration('native screenshot integration', () => {
-  beforeAll(() => {
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms))
+}
+
+describeIntegration('native screenshot daemon integration', () => {
+  let daemon: ScreenshotDaemon
+  const receivedFrames: CapturedFrame[] = []
+
+  beforeAll(async () => {
     if (!fs.existsSync(SCREENSHOT_BINARY_PATH)) {
       throw new Error(
         `Missing screenshot binary at ${SCREENSHOT_BINARY_PATH}. Run "npm run build:swift" first.`,
@@ -29,54 +36,58 @@ describeIntegration('native screenshot integration', () => {
     }
 
     fs.mkdirSync(RUN_OUTPUT_DIR, { recursive: true })
+
+    daemon = new ScreenshotDaemon()
+    await daemon.start({
+      outputDir: RUN_OUTPUT_DIR,
+      intervalMs: 500,
+      maxDimensionPx: 1920,
+      onFrame: (frame) => {
+        receivedFrames.push(frame)
+      },
+    })
   })
 
-  afterAll(() => {
+  afterAll(async () => {
+    await daemon.stop()
     delete process.env.MEMORYLANE_SCREENSHOT_EXECUTABLE
   })
 
-  it('captures a real desktop screenshot using default executable resolution', async () => {
-    const outputPath = path.join(RUN_OUTPUT_DIR, 'desktop.png')
-    const result = await captureDesktop({ outputPath })
+  it('autonomously captures frames and pushes them via onFrame', async () => {
+    // Wait for a few frames to arrive
+    const startCount = receivedFrames.length
+    await sleep(2000)
 
-    expect(result.filepath).toBe(outputPath)
-    expect(result.width).toBeGreaterThan(0)
-    expect(result.height).toBeGreaterThan(0)
-    assertPng(outputPath)
-  })
+    const newFrames = receivedFrames.slice(startCount)
+    expect(newFrames.length).toBeGreaterThanOrEqual(2)
 
-  it('captures a screenshot for an explicitly requested display id', async () => {
-    const baselinePath = path.join(RUN_OUTPUT_DIR, 'baseline-display.png')
-    const baselineCapture = await captureDesktop({ outputPath: baselinePath })
-    assertPng(baselinePath)
+    for (const frame of newFrames) {
+      expect(frame.filepath).toBeTruthy()
+      expect(frame.width).toBeGreaterThan(0)
+      expect(frame.height).toBeGreaterThan(0)
+      expect(frame.timestamp).toBeGreaterThan(0)
+      expect(frame.displayId).toBeGreaterThan(0)
+      expect(Math.max(frame.width, frame.height)).toBeLessThanOrEqual(1920)
+      assertJpeg(frame.filepath)
+    }
+  }, 10_000)
 
-    const explicitOutputPath = path.join(RUN_OUTPUT_DIR, 'explicit-display.png')
-    const explicitCapture = await captureDesktop({
-      outputPath: explicitOutputPath,
-      displayId: baselineCapture.displayId,
-    })
+  it('accepts displayId command via send', async () => {
+    // Grab current display ID from a received frame
+    expect(receivedFrames.length).toBeGreaterThan(0)
+    const currentDisplayId = receivedFrames[receivedFrames.length - 1].displayId
 
-    expect(explicitCapture.filepath).toBe(explicitOutputPath)
-    expect(explicitCapture.displayId).toBe(baselineCapture.displayId)
-    expect(explicitCapture.width).toBeGreaterThan(0)
-    expect(explicitCapture.height).toBeGreaterThan(0)
-    assertPng(explicitOutputPath)
-  })
+    // Send same display ID (should not crash)
+    daemon.send({ displayId: currentDisplayId })
+    await sleep(1500)
 
-  it('respects max dimension when requested', async () => {
-    const outputPath = path.join(RUN_OUTPUT_DIR, 'max-dimension.png')
-    const result = await captureDesktop({ outputPath, maxDimensionPx: 1920 })
-
-    expect(result.filepath).toBe(outputPath)
-    expect(result.width).toBeGreaterThan(0)
-    expect(result.height).toBeGreaterThan(0)
-    expect(Math.max(result.width, result.height)).toBeLessThanOrEqual(1920)
-    assertPng(outputPath)
-  })
+    // Frames should still be arriving
+    const recentFrame = receivedFrames[receivedFrames.length - 1]
+    expect(recentFrame.displayId).toBe(currentDisplayId)
+  }, 10_000)
 
   it('prints where screenshots were saved for manual inspection', () => {
-    expect(fs.existsSync(path.join(RUN_OUTPUT_DIR, 'desktop.png'))).toBe(true)
-    expect(fs.existsSync(path.join(RUN_OUTPUT_DIR, 'explicit-display.png'))).toBe(true)
+    expect(receivedFrames.length).toBeGreaterThan(0)
     console.log(`[NativeScreenshotIntegration] Saved captures in: ${RUN_OUTPUT_DIR}`)
   })
 })

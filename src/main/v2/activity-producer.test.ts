@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import { ACTIVITY_CONFIG } from '@constants'
 import type { EventWindow, InteractionContext } from '../../shared/types'
 import { InMemoryStream } from './streams/in-memory-stream'
 import type { StreamSubscription } from './streams/stream'
@@ -70,8 +71,14 @@ async function waitFor(
 describe('ActivityProducer', () => {
   const subscriptions: StreamSubscription[] = []
   const producers: ActivityProducer[] = []
+  const originalActivityConfig = {
+    min: ACTIVITY_CONFIG.MIN_ACTIVITY_DURATION_MS,
+    max: ACTIVITY_CONFIG.MAX_ACTIVITY_DURATION_MS,
+  }
 
   afterEach(async () => {
+    ACTIVITY_CONFIG.MIN_ACTIVITY_DURATION_MS = originalActivityConfig.min
+    ACTIVITY_CONFIG.MAX_ACTIVITY_DURATION_MS = originalActivityConfig.max
     for (const sub of subscriptions.splice(0)) {
       sub.unsubscribe()
     }
@@ -618,5 +625,130 @@ describe('ActivityProducer', () => {
     expect(
       activities.filter((a) => a.provenance.sourceWindowIds.includes('window-b')),
     ).toHaveLength(1)
+  })
+
+  it('uses current ACTIVITY_CONFIG defaults when min/max are not provided', async () => {
+    ACTIVITY_CONFIG.MIN_ACTIVITY_DURATION_MS = 5_000
+    ACTIVITY_CONFIG.MAX_ACTIVITY_DURATION_MS = 60_000
+
+    const frameStream = new InMemoryStream<Frame>()
+    const eventStream = new InMemoryStream<EventWindow>()
+    const activityStream = new InMemoryStream<V2Activity>()
+    const producer = new ActivityProducer({
+      frameStream,
+      eventStream,
+      activityStream,
+      config: {
+        frameJoinGraceMs: 0,
+        maxFrameWaitMs: 0,
+        frameBufferRetentionMs: 120_000,
+        eventConsumerId: 'test:event:defaults',
+        frameConsumerId: 'test:frame:defaults',
+      },
+    })
+    producers.push(producer)
+
+    const activities: V2Activity[] = []
+    subscriptions.push(
+      activityStream.subscribe({
+        startAt: { type: 'now' },
+        onRecord: (record) => activities.push(record.payload),
+      }),
+    )
+
+    await producer.start()
+    await frameStream.append(makeFrame(1_000, 0))
+    await eventStream.append(
+      makeWindow({
+        id: 'short-by-default',
+        startTimestamp: 0,
+        endTimestamp: 1_500,
+        closedBy: 'flush',
+        events: [
+          makeEvent(0, 'app_change', {
+            activeWindow: {
+              title: 'Code',
+              processName: 'Code',
+              bundleId: 'com.microsoft.VSCode',
+            },
+          }),
+        ],
+      }),
+    )
+
+    await waitFor(
+      async () => (await eventStream.getAck('test:event:defaults')) === 0,
+      'Expected short window to be processed',
+    )
+    expect(activities).toHaveLength(0)
+  })
+
+  it('applies updated activity window config at runtime', async () => {
+    const { producer, frameStream, eventStream, activityStream } = createProducer({
+      minActivityDurationMs: 0,
+      maxActivityDurationMs: 300_000,
+    })
+    const activities: V2Activity[] = []
+    subscriptions.push(
+      activityStream.subscribe({
+        startAt: { type: 'now' },
+        onRecord: (record) => activities.push(record.payload),
+      }),
+    )
+
+    await producer.start()
+    await frameStream.append(makeFrame(1_000, 0))
+    await frameStream.append(makeFrame(2_000, 1))
+
+    await eventStream.append(
+      makeWindow({
+        id: 'before-update',
+        startTimestamp: 0,
+        endTimestamp: 2_100,
+        closedBy: 'flush',
+        events: [
+          makeEvent(0, 'app_change', {
+            activeWindow: {
+              title: 'Code',
+              processName: 'Code',
+              bundleId: 'com.microsoft.VSCode',
+            },
+          }),
+        ],
+      }),
+    )
+
+    await waitFor(() => activities.length === 1, 'Expected first window to emit')
+
+    producer.updateActivityWindowConfig({
+      minActivityDurationMs: 10_000,
+      maxActivityDurationMs: 300_000,
+    })
+
+    await frameStream.append(makeFrame(20_000, 2))
+    await frameStream.append(makeFrame(21_000, 3))
+    await eventStream.append(
+      makeWindow({
+        id: 'after-update',
+        startTimestamp: 20_000,
+        endTimestamp: 21_500,
+        closedBy: 'flush',
+        events: [
+          makeEvent(20_000, 'app_change', {
+            activeWindow: {
+              title: 'Code',
+              processName: 'Code',
+              bundleId: 'com.microsoft.VSCode',
+            },
+          }),
+        ],
+      }),
+    )
+
+    await waitFor(
+      async () => (await eventStream.getAck('test:event')) === 1,
+      'Expected second window to be processed',
+    )
+    expect(activities).toHaveLength(1)
   })
 })

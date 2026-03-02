@@ -1,13 +1,19 @@
-# MemoryLane v0.12.1
+# MemoryLane v0.13.4
 
 MemoryLane is a macOS system tray app that captures your screen activity, processes it with OCR and AI summarization, and makes it searchable through an MCP server — giving AI assistants like Claude and Cursor memory of what you've been working on.
 
 ## What's Changed
 
-- **Fixed auto updater** — resolved an issue where the automatic update mechanism could fail to download and apply updates correctly
+- **Tray-only auto-start now works end to end (main update)** — packaged macOS and Windows builds can register a login item, relaunch hidden in the tray, and stay out of the way at sign-in
+- **Fresh packaged installs now opt into launch at login automatically** — new users start with auto-start enabled by default, and the first packaged run syncs that preference into the OS login item
+- **Capture state survives relaunches and wake-ups** — the app now persists whether capture was enabled, then restores that preference on startup and after power-state resume
+- **Single-instance startup is more reliable** — a second launch now focuses the existing app window instead of creating conflicting tray behavior
+- **Advanced settings now expose startup controls** — added a Launch at login toggle with clearer success/error handling when saving settings
 
 ## Features
 
+- **Launch at login enabled by default on fresh installs** — packaged macOS and Windows builds can start automatically and remain hidden in the tray, while still being user-configurable
+- **Persistent capture preference** — remembers whether capture should resume after restart or wake
 - **V2 activity pipeline** — new runtime path for event/capture ingestion, activity extraction, transformation, and persistence
 - **Video-first activity understanding** — stitched activity clips for richer semantic interpretation with fallback to frame snapshots
 - **Pattern detection foundation** — stores reusable activity patterns for future higher-level context and analysis workflows
@@ -24,11 +30,13 @@ MemoryLane is a macOS system tray app that captures your screen activity, proces
 - **Semantic search** — vector embeddings (all-MiniLM-L6-v2) + SQLite FTS5 for full-text and semantic search over your activity history
 - **MCP server** — exposes `search_context`, `browse_timeline`, and `get_event_details` tools plus time tracking and recent activity prompts for AI assistants
 - **One-click integrations** — register the MCP server with Claude Desktop or Cursor from the tray menu
-- **Configurable capture settings** — adjust visual change threshold, typing timeout, scroll timeout via the UI
+- **Configurable capture and semantic settings** — adjust visual change threshold, typing timeout, scroll timeout, and semantic mode behavior via the UI
 - **Secure API key storage** — uses Electron's safeStorage for encrypted key persistence
 - **Usage tracking** — monitors API requests, token usage, and costs
 - **Richer activity summaries** — improved summary quality for timeline and search context questions
 - **Windows OCR (preview)** — native OCR path available for Windows preview setups
+- **Windows app watcher integration (preview)** — recorder support for the native watcher backend with unit/e2e coverage and build packaging
+- **Database export from settings** — export local data from the app UI for backup and portability
 
 ## Known Issues & Limitations
 
@@ -56,4 +64,4 @@ After launching:
 
 ## Full Changelog
 
-https://github.com/deusXmachina-dev/memorylane/compare/v0.12.0...v0.12.1
+https://github.com/deusXmachina-dev/memorylane/compare/v0.13.2...v0.13.4

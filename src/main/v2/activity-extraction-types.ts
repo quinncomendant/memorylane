@@ -40,7 +40,7 @@ export interface ActivityExtractorStats {
 
 export const DEFAULT_V2_ACTIVITY_EXTRACTOR_CONFIG: V2ActivityExtractorConfig = {
   consumerId: 'v2-activity-extractor:activity-stream',
-  maxConcurrent: 2,
+  maxConcurrent: 1,
   maxRetries: 2,
   retryBackoffMs: 100,
 }

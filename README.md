@@ -24,7 +24,7 @@ Desktop app that sees what you see, stores summaries about it locally and lets y
 
 **Screenshots → local storage → MCP into AI chats**
 
-🎬 [Demo](https://www.loom.com/share/513b213e82d14323999e419fa434576d)
+🎬 [Demo](https://youtu.be/WfeZODpGV8k)
 
 <p align="center">
   <img src="assets/readme/screenshot.jpeg" width="32%" />
@@ -67,6 +67,7 @@ MemoryLane captures your screen to give AI assistants context about what you're 
 ### What works today
 
 - Event-driven screen capture (typing, clicking, scrolling, app switches, visual changes)
+- Launch at login with tray-only startup for packaged macOS and Windows builds, enabled by default on fresh installs
 - OCR via macOS Vision framework and native Windows OCR
 - AI-powered activity summarization (Mistral Small, GPT-5 Nano, Grok-4.1 Fast, Gemini Flash Lite via OpenRouter)
 - Custom endpoint support for OpenAI-compatible providers (including local models like Ollama)

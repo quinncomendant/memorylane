@@ -10,6 +10,10 @@ export interface RuntimeCapture {
   stopCapture(): void
   forceClose(): Promise<void>
   getScreenshotsDir(): string
+  updateActivityWindowConfig(input: {
+    minActivityDurationMs: number
+    maxActivityDurationMs: number
+  }): void
 }
 
 export interface RuntimeCaptureController extends RuntimeCapture {
@@ -95,6 +99,9 @@ export function createV2CaptureController(params: {
     },
     waitForIdle(): Promise<void> {
       return transition
+    },
+    updateActivityWindowConfig(input): void {
+      params.harness.updateActivityWindowConfig(input)
     },
   }
 }

@@ -1,6 +1,7 @@
 import Cocoa
-import CoreGraphics
+import CoreMedia
 import ImageIO
+import ScreenCaptureKit
 import UniformTypeIdentifiers
 
 setbuf(stdout, nil)
@@ -27,50 +28,88 @@ func fail(_ message: String, exitCode: Int32 = 1) -> Never {
     exit(exitCode)
 }
 
-func parseOptions(_ args: [String]) throws -> [String: String] {
-    var options: [String: String] = [:]
-    var i = 0
+// MARK: - CLI Argument Parsing
 
-    while i < args.count {
-        let key = args[i]
-        guard key.hasPrefix("--") else {
-            throw ScreenshotError.invalidArguments("Unexpected argument: \(key)")
-        }
-        guard i + 1 < args.count else {
-            throw ScreenshotError.invalidArguments("Missing value for option: \(key)")
-        }
-        options[key] = args[i + 1]
-        i += 2
-    }
-
-    return options
+struct DaemonConfig {
+    var outputDir: String
+    var intervalMs: Int
+    var maxDimension: Int?
+    var format: String
+    var quality: Int
 }
 
-func ensureOutputDirectory(for outputPath: String) throws {
-    let outputURL = URL(fileURLWithPath: outputPath)
-    let directoryURL = outputURL.deletingLastPathComponent()
-    try FileManager.default.createDirectory(
-        at: directoryURL,
-        withIntermediateDirectories: true
+func parseArgs() -> DaemonConfig {
+    let args = CommandLine.arguments
+    var outputDir: String? = nil
+    var intervalMs = 1000
+    var maxDimension: Int? = nil
+    var format = "jpeg"
+    var quality = 80
+
+    var i = 1
+    while i < args.count {
+        switch args[i] {
+        case "--outputDir":
+            i += 1; guard i < args.count else { fail("Missing value for --outputDir") }
+            outputDir = args[i]
+        case "--intervalMs":
+            i += 1; guard i < args.count, let v = Int(args[i]) else { fail("Invalid --intervalMs") }
+            intervalMs = v
+        case "--maxDimension":
+            i += 1; guard i < args.count, let v = Int(args[i]) else { fail("Invalid --maxDimension") }
+            maxDimension = v
+        case "--format":
+            i += 1; guard i < args.count else { fail("Missing value for --format") }
+            format = args[i]
+        case "--quality":
+            i += 1; guard i < args.count, let v = Int(args[i]) else { fail("Invalid --quality") }
+            quality = v
+        default:
+            fail("Unknown argument: \(args[i])")
+        }
+        i += 1
+    }
+
+    guard let dir = outputDir else {
+        fail("--outputDir is required")
+    }
+
+    return DaemonConfig(
+        outputDir: dir,
+        intervalMs: intervalMs,
+        maxDimension: maxDimension,
+        format: format,
+        quality: quality
     )
 }
 
-func writePNG(_ image: CGImage, to outputPath: String) throws {
-    try ensureOutputDirectory(for: outputPath)
+// MARK: - Image Writing
 
+func writeImage(_ image: CGImage, to outputPath: String, format: String, quality: Int) throws {
     let outputURL = URL(fileURLWithPath: outputPath)
+
+    let utType: UTType
+    var properties: [CFString: Any]? = nil
+
+    if format == "jpeg" {
+        utType = .jpeg
+        properties = [kCGImageDestinationLossyCompressionQuality: Double(quality) / 100.0]
+    } else {
+        utType = .png
+    }
+
     guard let destination = CGImageDestinationCreateWithURL(
         outputURL as CFURL,
-        UTType.png.identifier as CFString,
+        utType.identifier as CFString,
         1,
         nil
     ) else {
-        throw ScreenshotError.saveFailed("Could not create PNG destination for \(outputPath)")
+        throw ScreenshotError.saveFailed("Could not create image destination for \(outputPath)")
     }
 
-    CGImageDestinationAddImage(destination, image, nil)
+    CGImageDestinationAddImage(destination, image, properties as CFDictionary?)
     guard CGImageDestinationFinalize(destination) else {
-        throw ScreenshotError.saveFailed("Could not finalize PNG write to \(outputPath)")
+        throw ScreenshotError.saveFailed("Could not finalize image write to \(outputPath)")
     }
 }
 
@@ -102,7 +141,7 @@ func resizeIfNeeded(_ image: CGImage, maxDimension: Int?) throws -> CGImage {
         throw ScreenshotError.captureFailed("Could not allocate resize context")
     }
 
-    context.interpolationQuality = .high
+    context.interpolationQuality = .medium
     context.draw(image, in: CGRect(x: 0, y: 0, width: targetWidth, height: targetHeight))
 
     guard let resized = context.makeImage() else {
@@ -150,87 +189,197 @@ func resolveDisplayId(_ requestedDisplayId: UInt32?) throws -> CGDirectDisplayID
     return displays[0]
 }
 
-func captureDisplayImage(displayId: CGDirectDisplayID) throws -> CGImage {
-    guard let image = CGDisplayCreateImage(displayId) else {
-        throw ScreenshotError.captureFailed(
-            "CGDisplayCreateImage failed for display \(displayId) (screen recording permission may be required)"
-        )
-    }
-    return image
-}
+// MARK: - Autonomous ScreenCaptureKit Daemon
 
-func captureScreen(
-    outputPath: String,
-    requestedDisplayId: UInt32?,
-    maxDimension: Int?
-) throws -> [String: Any] {
-    let displayId = try resolveDisplayId(requestedDisplayId)
-    let originalImage = try captureDisplayImage(displayId: displayId)
-    let image = try resizeIfNeeded(originalImage, maxDimension: maxDimension)
-    try writePNG(image, to: outputPath)
+class AutonomousCapture: NSObject, SCStreamOutput {
+    private var stream: SCStream? = nil
+    private var currentDisplayId: CGDirectDisplayID? = nil
+    private var config: DaemonConfig
+    private let ciContext = CIContext()
+    private let writeQueue = DispatchQueue(label: "com.memorylane.screenshot.write")
+    private var frameCounter: UInt64 = 0
 
-    return [
-        "status": "ok",
-        "mode": "screen_only",
-        "filepath": outputPath,
-        "width": image.width,
-        "height": image.height,
-        "displayId": Int(displayId),
-    ]
-}
-
-let usage = """
-Usage:
-  screenshot.swift --output <path> [--display-id <id>] [--max-dimension <px>]
-"""
-
-do {
-    let args = Array(CommandLine.arguments.dropFirst())
-    if args.isEmpty {
-        throw ScreenshotError.invalidArguments(usage)
+    init(config: DaemonConfig) {
+        self.config = config
     }
 
-    let options = try parseOptions(args)
+    func startStream(displayId: CGDirectDisplayID? = nil) async throws {
+        await stopStream()
 
-    guard let outputPath = options["--output"], !outputPath.isEmpty else {
-        throw ScreenshotError.invalidArguments("Missing required --output")
-    }
-
-    let requestedDisplayId: UInt32?
-    if let displayIdRaw = options["--display-id"] {
-        guard let parsed = UInt32(displayIdRaw) else {
-            throw ScreenshotError.invalidArguments("Invalid --display-id value: \(displayIdRaw)")
+        let resolvedDisplayId = try resolveDisplayId(displayId)
+        let content = try await SCShareableContent.current
+        guard let display = content.displays.first(where: { $0.displayID == resolvedDisplayId }) else {
+            throw ScreenshotError.displayNotFound(resolvedDisplayId)
         }
-        requestedDisplayId = parsed
-    } else {
-        requestedDisplayId = nil
-    }
 
-    let maxDimension: Int?
-    if let maxDimensionRaw = options["--max-dimension"] {
-        guard let parsed = Int(maxDimensionRaw), parsed > 0 else {
-            throw ScreenshotError.invalidArguments("Invalid --max-dimension value: \(maxDimensionRaw)")
-        }
-        maxDimension = parsed
-    } else {
-        maxDimension = nil
-    }
+        let filter = SCContentFilter(display: display, excludingWindows: [])
 
-    emitJSON(
-        try captureScreen(
-            outputPath: outputPath,
-            requestedDisplayId: requestedDisplayId,
-            maxDimension: maxDimension
+        let streamConfig = SCStreamConfiguration()
+        streamConfig.width = display.width * 2 // Retina
+        streamConfig.height = display.height * 2
+        streamConfig.minimumFrameInterval = CMTime(
+            value: CMTimeValue(config.intervalMs),
+            timescale: 1000
         )
-    )
-} catch ScreenshotError.invalidArguments(let message) {
-    fail(message, exitCode: 2)
-} catch ScreenshotError.displayNotFound(let displayId) {
-    fail("Display not found: \(displayId)")
-} catch ScreenshotError.captureFailed(let message) {
-    fail(message)
-} catch ScreenshotError.saveFailed(let message) {
-    fail(message)
-} catch {
-    fail("Unexpected error: \(error)")
+        streamConfig.showsCursor = false
+        streamConfig.pixelFormat = kCVPixelFormatType_32BGRA
+
+        let newStream = SCStream(filter: filter, configuration: streamConfig, delegate: nil)
+        try newStream.addStreamOutput(
+            self,
+            type: .screen,
+            sampleHandlerQueue: DispatchQueue(label: "com.memorylane.screenshot.capture")
+        )
+        try await newStream.startCapture()
+
+        self.stream = newStream
+        self.currentDisplayId = resolvedDisplayId
+        fputs("[daemon] Stream started for display \(resolvedDisplayId) at \(config.intervalMs)ms interval\n", stderr)
+    }
+
+    func stopStream() async {
+        if let stream = self.stream {
+            try? await stream.stopCapture()
+        }
+        self.stream = nil
+        self.currentDisplayId = nil
+    }
+
+    func updateIntervalMs(_ ms: Int) async {
+        config.intervalMs = ms
+        // Must recreate stream to change minimumFrameInterval
+        if let displayId = currentDisplayId {
+            do {
+                try await startStream(displayId: displayId)
+            } catch {
+                fputs("[daemon] Failed to restart stream with new interval: \(error)\n", stderr)
+            }
+        }
+    }
+
+    func updateDisplayId(_ displayId: UInt32?) async {
+        // Resolve first so we can compare against currentDisplayId
+        let resolvedId: CGDirectDisplayID
+        do {
+            resolvedId = try resolveDisplayId(displayId)
+        } catch {
+            fputs("[daemon] Failed to resolve display: \(error)\n", stderr)
+            return
+        }
+
+        if resolvedId == self.currentDisplayId {
+            fputs("[daemon] Display \(resolvedId) already active, skipping stream restart\n", stderr)
+            return
+        }
+
+        do {
+            try await startStream(displayId: resolvedId)
+        } catch {
+            fputs("[daemon] Failed to switch display: \(error)\n", stderr)
+        }
+    }
+
+    // SCStreamOutput callback — called on each frame from ScreenCaptureKit
+    func stream(_ stream: SCStream, didOutputSampleBuffer sampleBuffer: CMSampleBuffer, of type: SCStreamOutputType) {
+        guard type == .screen else { return }
+        guard let imageBuffer = CMSampleBufferGetImageBuffer(sampleBuffer) else { return }
+
+        let ciImage = CIImage(cvImageBuffer: imageBuffer)
+        let width = CVPixelBufferGetWidth(imageBuffer)
+        let height = CVPixelBufferGetHeight(imageBuffer)
+        guard let cgImage = ciContext.createCGImage(ciImage, from: CGRect(x: 0, y: 0, width: width, height: height)) else {
+            return
+        }
+
+        let displayId = self.currentDisplayId ?? CGMainDisplayID()
+        let maxDimension = self.config.maxDimension
+        let format = self.config.format
+        let quality = self.config.quality
+        let outputDir = self.config.outputDir
+        let captureTimestamp = Int(Date().timeIntervalSince1970 * 1000)
+
+        writeQueue.async {
+            let filename = "frame-\(captureTimestamp).jpg"
+            let filepath = (outputDir as NSString).appendingPathComponent(filename)
+
+            do {
+                let resized = try resizeIfNeeded(cgImage, maxDimension: maxDimension)
+                try writeImage(resized, to: filepath, format: format, quality: quality)
+
+                let payload: [String: Any] = [
+                    "filepath": filepath,
+                    "timestamp": captureTimestamp,
+                    "width": resized.width,
+                    "height": resized.height,
+                    "displayId": Int(displayId),
+                ]
+                emitJSON(payload)
+            } catch {
+                fputs("[daemon] Frame write failed: \(error)\n", stderr)
+            }
+        }
+    }
 }
+
+// MARK: - Stdin command listener
+
+func listenForCommands(capture: AutonomousCapture) {
+    DispatchQueue.global(qos: .utility).async {
+        while let line = readLine(strippingNewline: true) {
+            guard let data = line.data(using: .utf8),
+                  let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+                fputs("[daemon] Invalid JSON on stdin: \(line)\n", stderr)
+                continue
+            }
+
+            let newDisplayId = json["displayId"]
+            let newIntervalMs = json["intervalMs"] as? Int
+
+            Task {
+                if let newIntervalMs {
+                    await capture.updateIntervalMs(newIntervalMs)
+                }
+
+                if newDisplayId is NSNull {
+                    // null = reset to main display
+                    await capture.updateDisplayId(nil)
+                } else if let id = newDisplayId as? UInt32 {
+                    await capture.updateDisplayId(id)
+                } else if let id = newDisplayId as? Int {
+                    await capture.updateDisplayId(UInt32(id))
+                }
+            }
+        }
+
+        // stdin closed — clean shutdown
+        Task {
+            await capture.stopStream()
+            exit(0)
+        }
+    }
+}
+
+// MARK: - Entry point
+
+let config = parseArgs()
+
+// Ensure output directory exists
+try FileManager.default.createDirectory(
+    atPath: config.outputDir,
+    withIntermediateDirectories: true
+)
+
+let capture = AutonomousCapture(config: config)
+
+let semaphore = DispatchSemaphore(value: 0)
+Task {
+    do {
+        try await capture.startStream()
+    } catch {
+        fail("Failed to start capture stream: \(error)")
+    }
+
+    // Start listening for stdin commands
+    listenForCommands(capture: capture)
+}
+semaphore.wait()

@@ -7,11 +7,22 @@
 
 import { app } from 'electron'
 import { config as loadEnv } from 'dotenv'
+import {
+  canSyncAutoStartSetting,
+  shouldStartHiddenOnLaunch,
+  syncAutoStartSetting,
+} from './auto-start'
+import { createCaptureCoordinator } from './capture-orchestrator'
 import log from './logger'
 import { startPowerMonitoring, shouldPause } from './power-monitor'
+import { CaptureStateManager } from './settings/capture-state-manager'
 import { CaptureSettingsManager } from './settings/capture-settings-manager'
 import { PatternDetector } from './services/pattern-detector'
 import { createV2MainRuntime, type V2MainRuntime } from './v2/runtime'
+
+if (!app.requestSingleInstanceLock()) {
+  app.quit()
+}
 
 try {
   loadEnv()
@@ -37,7 +48,15 @@ app.on('before-quit', () => {
   void runtime.dispose()
 })
 
+app.on('second-instance', () => {
+  void import('./ui/main-window').then(({ openMainWindow }) => {
+    openMainWindow()
+  })
+})
+
 app.on('ready', async () => {
+  const startHidden = shouldStartHiddenOnLaunch()
+
   try {
     const { ensurePermissions } = await import('./ui/permissions')
     await ensurePermissions()
@@ -57,7 +76,13 @@ app.on('ready', async () => {
   }
 
   const captureSettingsManager = new CaptureSettingsManager()
+  const captureStateManager = new CaptureStateManager()
   captureSettingsManager.applyToConstants()
+
+  if (!captureStateManager.isAutoStartInitialized() && canSyncAutoStartSetting()) {
+    syncAutoStartSetting(captureSettingsManager.get().autoStartEnabled)
+    captureStateManager.setAutoStartInitialized(true)
+  }
 
   const { setupTray, updateTrayMenu } = await import('./ui/tray')
   const { initMainWindowIPC, openMainWindow, sendStatusToRenderer } =
@@ -68,12 +93,19 @@ app.on('ready', async () => {
       void updateTrayMenu()
       void sendStatusToRenderer()
     },
+    semanticPipelinePreference: captureSettingsManager.get().semanticPipelineMode,
   })
 
   patternDetector = new PatternDetector(runtime.storage, runtime.apiKeyManager)
+  const captureCoordinator = createCaptureCoordinator({
+    capture: runtime.capture,
+    captureStateManager,
+    isPaused: shouldPause,
+    patternDetector,
+  })
 
   setupTray({
-    capture: runtime.capture,
+    capture: captureCoordinator.controls,
     storage: runtime.storage,
   })
 
@@ -83,7 +115,7 @@ app.on('ready', async () => {
   })
 
   initMainWindowIPC({
-    capture: runtime.capture,
+    capture: captureCoordinator.controls,
     storage: runtime.storage,
     usageTracker: runtime.usageTracker,
     apiKeyManager: runtime.apiKeyManager,
@@ -98,7 +130,11 @@ app.on('ready', async () => {
     void runtime.managedKeyService.tryFetchKey()
   }
 
-  openMainWindow()
+  captureCoordinator.resumeCaptureIfDesired('startup')
+
+  if (!startHidden) {
+    openMainWindow()
+  }
 
   app.on('activate', () => {
     openMainWindow()
@@ -113,12 +149,7 @@ app.on('ready', async () => {
       runtime.capture.stopCapture()
     },
     onResume: () => {
-      if (!runtime) return
-      if (runtime.capture.isCapturingNow() || shouldPause()) return
-
-      log.info('[Main] Resuming capture (power state: active)')
-      runtime.capture.startCapture()
-      patternDetector?.scheduleRun()
+      captureCoordinator.resumeCaptureIfDesired('resume')
     },
   })
 

@@ -13,8 +13,9 @@ import { getUpdateState, quitAndInstall } from '../updater'
 interface TrayDependencies {
   capture: {
     isCapturingNow: () => boolean
-    startCapture: () => void
-    stopCapture: () => void
+    requestStartCapture: () => void
+    requestStopCapture: () => void
+    stopCaptureForShutdown: () => void
     forceClose: () => Promise<void>
   }
   storage: StorageService
@@ -101,10 +102,9 @@ export const updateTrayMenu = async (): Promise<void> => {
       label: isCapturing ? 'Stop Capture' : 'Start Capture',
       click: () => {
         if (isCapturing) {
-          void deps!.capture.forceClose()
-          deps!.capture.stopCapture()
+          deps!.capture.requestStopCapture()
         } else {
-          deps!.capture.startCapture()
+          deps!.capture.requestStartCapture()
         }
         void updateTrayMenu()
         void sendStatusToRenderer()
@@ -126,7 +126,7 @@ export const updateTrayMenu = async (): Promise<void> => {
       label: 'Quit',
       click: () => {
         void deps!.capture.forceClose()
-        deps!.capture.stopCapture()
+        deps!.capture.stopCaptureForShutdown()
         app.quit()
       },
     },

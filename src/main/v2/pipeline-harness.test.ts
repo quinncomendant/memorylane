@@ -4,6 +4,11 @@ import type { V2ExtractedActivity } from './activity-extraction-types'
 import type { V2Activity } from './activity-types'
 import type { StreamSubscription } from './streams/stream'
 import { createV2PipelineHarness } from './pipeline-harness'
+import type {
+  CaptureBackendConfig,
+  CaptureBackendCommand,
+  CapturedFrame,
+} from './recorder/native-screenshot'
 
 vi.mock('../logger', () => ({
   default: {
@@ -14,19 +19,52 @@ vi.mock('../logger', () => ({
   },
 }))
 
-const { mockedCaptureDesktop } = vi.hoisted(() => ({
-  mockedCaptureDesktop: vi.fn(
-    async ({ outputPath, displayId }: { outputPath: string; displayId?: number }) => ({
-      filepath: outputPath,
-      width: 1280,
-      height: 720,
-      displayId: displayId ?? 1,
-    }),
-  ),
-}))
+const { mockBackendState } = vi.hoisted(() => {
+  const mockBackendState = {
+    onFrame: null as ((frame: CapturedFrame) => void) | null,
+    outputDir: '',
+    intervalMs: 1000,
+    frameTimer: null as ReturnType<typeof setInterval> | null,
+    lastDisplayId: undefined as number | null | undefined,
+    lastSentCommand: undefined as CaptureBackendCommand | undefined,
+  }
+  return { mockBackendState }
+})
 
 vi.mock('./recorder/native-screenshot', () => ({
-  captureDesktop: mockedCaptureDesktop,
+  createScreenCaptureBackend: () => ({
+    start: vi.fn(async (config: CaptureBackendConfig) => {
+      mockBackendState.onFrame = config.onFrame
+      mockBackendState.outputDir = config.outputDir
+      mockBackendState.intervalMs = config.intervalMs ?? 1000
+      // Simulate autonomous frame emission
+      mockBackendState.frameTimer = setInterval(() => {
+        if (mockBackendState.onFrame) {
+          const filepath = path.join(mockBackendState.outputDir, `frame-${Date.now()}.jpg`)
+          mockBackendState.onFrame({
+            filepath,
+            timestamp: Date.now(),
+            width: 1280,
+            height: 720,
+            displayId: (mockBackendState.lastDisplayId as number) ?? 1,
+          })
+        }
+      }, mockBackendState.intervalMs)
+    }),
+    stop: vi.fn(async () => {
+      if (mockBackendState.frameTimer) {
+        clearInterval(mockBackendState.frameTimer)
+        mockBackendState.frameTimer = null
+      }
+      mockBackendState.onFrame = null
+    }),
+    send: vi.fn((command: CaptureBackendCommand) => {
+      mockBackendState.lastSentCommand = command
+      if (command.displayId !== undefined) {
+        mockBackendState.lastDisplayId = command.displayId
+      }
+    }),
+  }),
 }))
 
 function sleep(ms: number): Promise<void> {
@@ -50,7 +88,13 @@ describe('v2 pipeline harness', () => {
   const subscriptions: StreamSubscription[] = []
 
   afterEach(() => {
-    mockedCaptureDesktop.mockClear()
+    mockBackendState.onFrame = null
+    mockBackendState.lastDisplayId = undefined
+    mockBackendState.lastSentCommand = undefined
+    if (mockBackendState.frameTimer) {
+      clearInterval(mockBackendState.frameTimer)
+      mockBackendState.frameTimer = null
+    }
     for (const sub of subscriptions.splice(0)) {
       sub.unsubscribe()
     }
@@ -136,11 +180,8 @@ describe('v2 pipeline harness', () => {
     })
 
     await waitFor(
-      () =>
-        mockedCaptureDesktop.mock.calls.some(
-          (call) => (call[0] as { displayId?: number } | undefined)?.displayId === 2,
-        ),
-      'Expected captureDesktop to receive displayId=2 after app_change',
+      () => mockBackendState.lastSentCommand?.displayId === 2,
+      'Expected backend.send to receive displayId=2 after app_change',
     )
 
     await harness.stop()

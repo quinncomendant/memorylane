@@ -4,21 +4,39 @@ import type { SemanticMode } from './types'
 
 export function buildSemanticPrompt(activity: V2Activity, mode: SemanticMode): string {
   const durationMs = Math.max(0, activity.endTimestamp - activity.startTimestamp)
+  const durationStr = formatDuration(durationMs)
   const sourceNote =
     mode === 'video'
       ? 'Evidence source: one continuous stitched activity video.'
       : 'Evidence source: sampled snapshots from the activity timeline (not continuous coverage).'
 
-  let prompt = 'You are summarizing a user activity session.\n\n'
+  let prompt =
+    'You are summarizing a user activity session from media and interaction timeline.\n\n'
 
+  // Rules first - sets the model behavior before it sees any data.
   prompt += '## Rules\n'
-  prompt += '- Answer what the user was working on for later recall.\n'
-  prompt += '- Be specific about visible files, pages, or UI context.\n'
-  prompt += '- Do not exaggerate certainty.\n'
-  prompt += '- Do not mention raw interaction coordinates or low-level event telemetry.\n'
-  prompt += '- Keep output to 40-100 words, one paragraph, no bullet points.\n'
-  prompt += '- Start directly with the work done, not with meta phrases.\n\n'
+  prompt += '- Media is primary source. Timeline is secondary context for ordering/pacing.\n'
+  prompt += '- Answer "What was I working on?" - useful for recall, not a play-by-play.\n'
+  prompt +=
+    '- NEVER mention raw interactions (clicks, scrolling, key counts). Translate into meaningful actions.\n'
+  prompt +=
+    '- Be specific: name files, functions, errors, URLs, and UI elements visible in the provided media.\n'
+  prompt +=
+    '- Match verb intensity to evidence: browsing/reviewing (no visible edits) -> "browsed," "reviewed," "checked." Light editing (small visible changes) -> "tweaked," "adjusted." Active work (sustained edits, new code, debugging) -> "implemented," "debugged," "refactored." Evidence of editing = visible changed lines, new code, or diff markers.\n'
+  prompt +=
+    '- Do NOT exaggerate. Switching files/tabs = browsing, not editing. Opening a file/page = reviewing, not working on it.\n'
+  prompt +=
+    '- Distinguish preparation from completion. Seeing a form, dialog, or compose window being filled out is NOT evidence it was submitted. Without visible confirmation (success toast, page redirect, confirmation screen), use preparatory verbs like "started," "drafted," "filled out," "was setting up" — NOT completion verbs like "sent," "submitted," "invited," "created."\n'
+  prompt +=
+    '- Describe what changed over time: new code, different tabs/pages, updated content, or navigation.\n'
+  prompt += '- If evidence is partial, hedge briefly instead of over-claiming.\n'
+  prompt +=
+    '- 40-100 words, 1-4 sentences, single paragraph, no bullet points. Low-activity sessions should use the lower end.\n'
+  prompt +=
+    '- Start directly with the action or subject. NEVER start with "During this session", "In this session", "The user", or similar meta-phrases.\n'
+  prompt += '\n'
 
+  // Context
   prompt += '## Context\n'
   prompt += `- App: ${activity.context.appName}\n`
   if (activity.context.windowTitle) {
@@ -27,20 +45,22 @@ export function buildSemanticPrompt(activity: V2Activity, mode: SemanticMode): s
   if (activity.context.tld) {
     prompt += `- TLD: ${activity.context.tld}\n`
   }
-  prompt += `- Duration: ${formatDuration(durationMs)}\n`
+  prompt += `- Duration: ${durationStr}\n`
   prompt += `- Start: ${new Date(activity.startTimestamp).toISOString()}\n`
   prompt += `- End: ${new Date(activity.endTimestamp).toISOString()}\n`
   prompt += `- ${sourceNote}\n\n`
 
+  // Timeline
   const timeline = buildInteractionTimeline(activity)
   if (timeline.length > 0) {
-    prompt += '## Timeline\n'
+    prompt += '## Activity timeline\n'
     prompt += timeline + '\n\n'
   }
 
+  // Task
   prompt += '## Task\n'
   prompt +=
-    'Describe what the user worked on during this activity based only on visible evidence from the provided media.'
+    'Describe what was worked on. Start mid-sentence with the action (e.g. "Implemented...", "Reviewed...", "Debugged...").\n'
 
   return prompt
 }

@@ -34,7 +34,7 @@ export function sweepStaleFiles(outputDir: string): void {
   let deleted = 0
   try {
     for (const file of fs.readdirSync(outputDir)) {
-      if (!file.endsWith('.png') && !file.endsWith('.mp4')) continue
+      if (!file.endsWith('.png') && !file.endsWith('.jpg') && !file.endsWith('.mp4')) continue
       const filepath = path.join(outputDir, file)
       try {
         if (now - fs.statSync(filepath).mtimeMs > SCREENSHOT_CLEANUP_CONFIG.MAX_AGE_MS) {

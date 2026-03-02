@@ -11,13 +11,13 @@ interface PendingWindow {
   closedBy: EventWindow['closedBy']
   boundaryTimestamp: number
   includeBoundaryTimestamp: boolean
+  endTimestampOverride?: number
   finalizeTimer: NodeJS.Timeout | null
 }
 
 interface CloseWindowOptions {
   boundaryTimestamp?: number
   includeBoundaryTimestamp?: boolean
-  nextWindowStartTimestamp?: number
   waitForLateEvents?: boolean
 }
 
@@ -39,8 +39,9 @@ export class EventCapturer {
   } | null = null
 
   /**
-   * Boundary timestamp carried from the last closed window. The next opened
-   * window starts from this boundary so adjacent windows stay contiguous.
+   * Candidate start for the next window.
+   * Only app_change sets this value so the new window starts exactly at the
+   * switch boundary. Other close reasons open at the next observed event.
    */
   private nextWindowStartTimestamp: number | null = null
   private pendingWindows: PendingWindow[] = []
@@ -170,19 +171,24 @@ export class EventCapturer {
       this.maxDurationTimer = null
     }
 
+    const boundaryTimestamp = options?.boundaryTimestamp ?? Date.now()
     const pendingWindow: PendingWindow = {
       id: this.currentWindow.id,
       startTimestamp: this.currentWindow.startTimestamp,
       events: [...this.currentWindow.events],
       closedBy: reason,
-      boundaryTimestamp: options?.boundaryTimestamp ?? Date.now(),
+      boundaryTimestamp,
       includeBoundaryTimestamp: options?.includeBoundaryTimestamp ?? true,
+      endTimestampOverride:
+        reason === 'app_change' && Number.isFinite(boundaryTimestamp)
+          ? boundaryTimestamp
+          : undefined,
       finalizeTimer: null,
     }
 
     this.currentWindow = null
     this.nextWindowStartTimestamp =
-      options?.nextWindowStartTimestamp ?? this.computeWindowBounds(pendingWindow).endTimestamp
+      reason === 'app_change' && Number.isFinite(boundaryTimestamp) ? boundaryTimestamp : null
 
     const shouldWaitForLateEvents = options?.waitForLateEvents ?? true
     const finalizeDelayMs = shouldWaitForLateEvents ? this.lateEventGraceMs : 0
@@ -261,10 +267,6 @@ export class EventCapturer {
       closedBy: pendingWindow.closedBy,
     }
 
-    if (this.currentWindow === null) {
-      this.nextWindowStartTimestamp = window.endTimestamp
-    }
-
     log.info(
       `[EventCapturer] Window closed (${window.closedBy}): ${window.events.length} events, ` +
         `${window.endTimestamp - window.startTimestamp}ms`,
@@ -272,10 +274,21 @@ export class EventCapturer {
     this.enqueueWindow(window)
   }
 
-  private computeWindowBounds(window: { startTimestamp: number; events: InteractionContext[] }): {
+  private computeWindowBounds(window: {
+    startTimestamp: number
+    events: InteractionContext[]
+    endTimestampOverride?: number
+  }): {
     startTimestamp: number
     endTimestamp: number
   } {
+    if (window.endTimestampOverride !== undefined && Number.isFinite(window.endTimestampOverride)) {
+      return {
+        startTimestamp: window.startTimestamp,
+        endTimestamp: Math.max(window.startTimestamp, window.endTimestampOverride),
+      }
+    }
+
     const timestamps = window.events
       .map((event) => event.timestamp)
       .filter((timestamp) => Number.isFinite(timestamp))

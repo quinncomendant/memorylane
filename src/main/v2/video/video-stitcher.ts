@@ -12,6 +12,7 @@ const DEFAULT_FRAME_DURATION_MS = 1_000
 const FFMPEG_EXECUTABLE_ENV = 'MEMORYLANE_FFMPEG_EXECUTABLE'
 const FFMPEG_VIDEO_PRESET = 'ultrafast'
 const FFMPEG_VIDEO_CRF = '28'
+const FFMPEG_VIDEO_THREADS = '1'
 
 function isPathInsideAsarArchive(filepath: string): boolean {
   return /\.asar([/\\])/.test(filepath)
@@ -209,6 +210,8 @@ export class FfmpegVideoStitcher implements ActivityVideoStitcher {
         '0',
         '-i',
         concatPath,
+        '-threads',
+        FFMPEG_VIDEO_THREADS,
         '-c:v',
         'libx264',
         '-preset',

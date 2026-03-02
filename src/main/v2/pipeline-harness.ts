@@ -24,12 +24,15 @@ export interface V2PipelineHarness {
   start(): Promise<void>
   stop(): Promise<void>
   handleEvent(event: InteractionContext): void
+  updateActivityWindowConfig(input: {
+    minActivityDurationMs: number
+    maxActivityDurationMs: number
+  }): void
 }
 
 export function createV2PipelineHarness(params: {
   outputDir: string
   frameIntervalMs?: number
-  displayId?: number
   activityProducerConfig?: Partial<V2ActivityProducerConfig>
   activityExtractorConfig?: Partial<V2ActivityExtractorConfig>
   extractorTransformer?: ActivityTransformer
@@ -42,7 +45,6 @@ export function createV2PipelineHarness(params: {
   const screenCapturer = new ScreenCapturer({
     intervalMs: params.frameIntervalMs,
     outputDir: params.outputDir,
-    displayId: params.displayId,
     stream: frameStream,
   })
   const eventCapturer = new EventCapturer(eventStream)
@@ -90,7 +92,7 @@ export function createV2PipelineHarness(params: {
       if (activityExtractor) {
         await activityExtractor.start()
       }
-      screenCapturer.start()
+      await screenCapturer.start()
 
       cleanupTimer = setInterval(() => {
         sweepStaleFiles(params.outputDir)
@@ -101,7 +103,7 @@ export function createV2PipelineHarness(params: {
         clearInterval(cleanupTimer)
         cleanupTimer = null
       }
-      screenCapturer.stop()
+      await screenCapturer.stop()
       await eventCapturer.flushAndWait()
       await activityProducer.stop()
       if (activityExtractor) {
@@ -114,6 +116,12 @@ export function createV2PipelineHarness(params: {
         screenCapturer.setDisplayId(event.displayId)
       }
       eventCapturer.handleEvent(event)
+    },
+    updateActivityWindowConfig(input) {
+      activityProducer.updateActivityWindowConfig({
+        ...input,
+        frameBufferRetentionMs: Math.max(input.maxActivityDurationMs * 2, 1),
+      })
     },
   }
 }

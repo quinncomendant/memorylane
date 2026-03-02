@@ -44,12 +44,14 @@ export interface V2ActivityProducerConfig {
   frameConsumerId: string
 }
 
-export const DEFAULT_V2_ACTIVITY_PRODUCER_CONFIG: V2ActivityProducerConfig = {
-  frameJoinGraceMs: 750,
-  maxFrameWaitMs: 5_000,
-  minActivityDurationMs: ACTIVITY_CONFIG.MIN_ACTIVITY_DURATION_MS,
-  maxActivityDurationMs: ACTIVITY_CONFIG.MAX_ACTIVITY_DURATION_MS,
-  frameBufferRetentionMs: ACTIVITY_CONFIG.MAX_ACTIVITY_DURATION_MS * 2,
-  eventConsumerId: 'v2-activity-producer:event-stream',
-  frameConsumerId: 'v2-activity-producer:frame-stream',
+export function createDefaultV2ActivityProducerConfig(): V2ActivityProducerConfig {
+  return {
+    frameJoinGraceMs: 750,
+    maxFrameWaitMs: 5_000,
+    minActivityDurationMs: ACTIVITY_CONFIG.MIN_ACTIVITY_DURATION_MS,
+    maxActivityDurationMs: ACTIVITY_CONFIG.MAX_ACTIVITY_DURATION_MS,
+    frameBufferRetentionMs: ACTIVITY_CONFIG.MAX_ACTIVITY_DURATION_MS * 2,
+    eventConsumerId: 'v2-activity-producer:event-stream',
+    frameConsumerId: 'v2-activity-producer:frame-stream',
+  }
 }

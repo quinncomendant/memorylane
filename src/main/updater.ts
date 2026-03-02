@@ -15,9 +15,21 @@ export const quitAndInstall = (): void => {
     clearInterval(reminderInterval)
     reminderInterval = null
   }
+  log.info('[Updater] Requesting quit-and-install')
   // isForceRunAfter=true is required for tray apps that have no main window,
   // otherwise the quit sequence can stall.
   autoUpdater.quitAndInstall(false, true)
+
+  // Safety net: electron-updater may silently not quit the app (e.g. if the
+  // downloaded update helper was GC'd, or the native Squirrel quit stalls in
+  // a tray-only app with no windows to close). Force-terminate after a grace
+  // period — ShipIt (Squirrel.Mac) only needs the process to die before it
+  // can copy the new version and relaunch.
+  // Intentionally NOT .unref()'d so this keeps the event loop alive.
+  setTimeout(() => {
+    log.warn('[Updater] App still running after quitAndInstall — forcing exit')
+    app.exit(0)
+  }, 3_000)
 }
 
 const showUpdateNotification = (version: string): void => {

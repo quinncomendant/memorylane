@@ -6,7 +6,7 @@ import type { Frame } from './recorder/screen-capturer'
 import type { DurableStream, Offset, StreamRecord, StreamSubscription } from './streams/stream'
 import { v5 as uuidv5 } from 'uuid'
 import {
-  DEFAULT_V2_ACTIVITY_PRODUCER_CONFIG,
+  createDefaultV2ActivityProducerConfig,
   type V2Activity,
   type V2ActivityContext,
   type V2ActivityFrame,
@@ -48,7 +48,7 @@ export class ActivityProducer {
   private readonly frameStream: DurableStream<Frame>
   private readonly eventStream: DurableStream<EventWindow>
   private readonly activityStream: DurableStream<V2Activity>
-  private readonly config: V2ActivityProducerConfig
+  private config: V2ActivityProducerConfig
 
   private frameSubscription: StreamSubscription | null = null
   private eventSubscription: StreamSubscription | null = null
@@ -77,19 +77,28 @@ export class ActivityProducer {
     this.eventStream = params.eventStream
     this.activityStream = params.activityStream
     this.config = {
-      ...DEFAULT_V2_ACTIVITY_PRODUCER_CONFIG,
+      ...createDefaultV2ActivityProducerConfig(),
       ...(params.config ?? {}),
     }
 
-    if (this.config.maxActivityDurationMs <= 0) {
-      throw new Error('maxActivityDurationMs must be > 0')
+    this.validateConfig(this.config)
+  }
+
+  updateActivityWindowConfig(input: {
+    minActivityDurationMs: number
+    maxActivityDurationMs: number
+    frameBufferRetentionMs?: number
+  }): void {
+    const nextConfig: V2ActivityProducerConfig = {
+      ...this.config,
+      minActivityDurationMs: input.minActivityDurationMs,
+      maxActivityDurationMs: input.maxActivityDurationMs,
+      frameBufferRetentionMs:
+        input.frameBufferRetentionMs ?? Math.max(input.maxActivityDurationMs * 2, 1),
     }
-    if (this.config.minActivityDurationMs < 0) {
-      throw new Error('minActivityDurationMs must be >= 0')
-    }
-    if (this.config.frameBufferRetentionMs <= 0) {
-      throw new Error('frameBufferRetentionMs must be > 0')
-    }
+    this.validateConfig(nextConfig)
+    this.config = nextConfig
+    this.trimFrameBufferByAge()
   }
 
   async start(): Promise<void> {
@@ -511,5 +520,17 @@ export class ActivityProducer {
     ])
     if (ack === null) return lowest
     return Math.max(lowest, ack + 1)
+  }
+
+  private validateConfig(config: V2ActivityProducerConfig): void {
+    if (config.maxActivityDurationMs <= 0) {
+      throw new Error('maxActivityDurationMs must be > 0')
+    }
+    if (config.minActivityDurationMs < 0) {
+      throw new Error('minActivityDurationMs must be >= 0')
+    }
+    if (config.frameBufferRetentionMs <= 0) {
+      throw new Error('frameBufferRetentionMs must be > 0')
+    }
   }
 }

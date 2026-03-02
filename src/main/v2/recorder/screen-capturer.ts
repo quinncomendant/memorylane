@@ -1,15 +1,11 @@
-import * as path from 'path'
 import log from '../../logger'
 import { SCREEN_CAPTURER_CONFIG } from '@constants'
-import { captureDesktop } from './native-screenshot'
+import { createScreenCaptureBackend, type ScreenCaptureBackend } from './native-screenshot'
 import type { DurableStream } from '../streams/stream'
-
-const MAX_TRANSIENT_CAPTURE_FAILURES = 20
 
 export interface ScreenCapturerConfig {
   intervalMs?: number
   outputDir: string
-  displayId?: number
   maxDimensionPx?: number
   stream: DurableStream<Frame>
 }
@@ -26,20 +22,19 @@ export interface Frame {
 export class ScreenCapturer {
   private readonly intervalMs: number
   private readonly outputDir: string
-  private displayId: number | undefined
   private readonly maxDimensionPx: number | undefined
   private readonly stream: DurableStream<Frame>
+  private readonly backend: ScreenCaptureBackend
   private _capturing = false
-  private timer: ReturnType<typeof setTimeout> | null = null
   private _sequenceNumber = 0
-  private appendChain: Promise<void> = Promise.resolve()
+  private _currentDisplayId: number | null | undefined = undefined
 
   constructor(config: ScreenCapturerConfig) {
     this.intervalMs = config.intervalMs ?? SCREEN_CAPTURER_CONFIG.DEFAULT_INTERVAL_MS
     this.outputDir = config.outputDir
-    this.displayId = config.displayId
     this.maxDimensionPx = config.maxDimensionPx ?? SCREEN_CAPTURER_CONFIG.MAX_DIMENSION_PX
     this.stream = config.stream
+    this.backend = createScreenCaptureBackend()
   }
 
   get capturing(): boolean {
@@ -47,95 +42,37 @@ export class ScreenCapturer {
   }
 
   setDisplayId(displayId: number | undefined): void {
-    this.displayId = displayId
+    const normalized = displayId ?? null
+    if (normalized === this._currentDisplayId) return
+    this._currentDisplayId = normalized
+    this.backend.send({ displayId: normalized })
   }
 
-  start(): void {
+  setIntervalMs(ms: number): void {
+    this.backend.send({ intervalMs: ms })
+  }
+
+  async start(): Promise<void> {
     if (this._capturing) return
     this._capturing = true
-    this.tick()
-  }
-
-  stop(): void {
-    this._capturing = false
-    if (this.timer !== null) {
-      clearTimeout(this.timer)
-      this.timer = null
-    }
-  }
-
-  private tick(): void {
-    if (!this._capturing) return
-
-    const start = Date.now()
-    this.captureFrame()
-      .then(() => {
-        if (!this._capturing) return
-        const elapsed = Date.now() - start
-        const delay = Math.max(0, this.intervalMs - elapsed)
-        this.timer = setTimeout(() => this.tick(), delay)
-      })
-      .catch((err) => {
-        log.error('[ScreenCapturer] Capture failed:', err)
-        if (!this._capturing) return
-        const elapsed = Date.now() - start
-        const delay = Math.max(0, this.intervalMs - elapsed)
-        this.timer = setTimeout(() => this.tick(), delay)
-      })
-  }
-
-  private async captureFrame(): Promise<void> {
-    const seq = this._sequenceNumber++
-    const outputPath = path.join(this.outputDir, `frame-${seq}.png`)
-    const timestamp = Date.now()
-
-    const result = await this.captureDesktopWithTolerance(outputPath)
-
-    const frame: Frame = {
-      filepath: result.filepath,
-      timestamp,
-      width: result.width,
-      height: result.height,
-      displayId: result.displayId,
-      sequenceNumber: seq,
-    }
-
-    this.enqueueFrame(frame)
-  }
-
-  private async captureDesktopWithTolerance(outputPath: string) {
-    for (
-      let failedAttempts = 0;
-      failedAttempts <= MAX_TRANSIENT_CAPTURE_FAILURES;
-      failedAttempts += 1
-    ) {
-      try {
-        return await captureDesktop({
-          outputPath,
-          displayId: this.displayId,
-          maxDimensionPx: this.maxDimensionPx,
-        })
-      } catch (error) {
-        if (failedAttempts === MAX_TRANSIENT_CAPTURE_FAILURES) {
-          throw error
+    await this.backend.start({
+      outputDir: this.outputDir,
+      intervalMs: this.intervalMs,
+      maxDimensionPx: this.maxDimensionPx,
+      onFrame: (capturedFrame) => {
+        const frame: Frame = {
+          ...capturedFrame,
+          sequenceNumber: this._sequenceNumber++,
         }
-        log.warn(
-          `[ScreenCapturer] Capture failed (ignored ${failedAttempts + 1}/${MAX_TRANSIENT_CAPTURE_FAILURES})`,
-          error,
-        )
-      }
-    }
-
-    throw new Error('Capture retry loop exited unexpectedly')
+        this.stream.append(frame).catch((err) => {
+          log.error('[ScreenCapturer] Stream append failed:', err)
+        })
+      },
+    })
   }
 
-  private enqueueFrame(frame: Frame): void {
-    const appendTask = this.appendChain.then(() => this.stream.append(frame))
-
-    this.appendChain = appendTask
-      .then(() => undefined)
-      .catch((err) => {
-        log.error('[ScreenCapturer] Stream append failed:', err)
-      })
+  async stop(): Promise<void> {
+    this._capturing = false
+    await this.backend.stop()
   }
 }

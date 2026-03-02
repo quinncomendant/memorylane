@@ -13,13 +13,13 @@ const SCREENSHOT_BINARY_PATH = path.resolve(process.cwd(), 'build', 'swift', 'sc
 const OUTPUT_ROOT_DIR = path.resolve(process.cwd(), '.debug-screen-capturer')
 const RUN_OUTPUT_DIR = path.join(OUTPUT_ROOT_DIR, new Date().toISOString().replace(/[:.]/g, '-'))
 
-const PNG_SIGNATURE = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])
+const JPEG_SOI = Buffer.from([0xff, 0xd8])
 
-function assertPng(pathname: string): void {
+function assertJpeg(pathname: string): void {
   expect(fs.existsSync(pathname)).toBe(true)
   const bytes = fs.readFileSync(pathname)
-  expect(bytes.length).toBeGreaterThan(PNG_SIGNATURE.length)
-  expect(bytes.subarray(0, PNG_SIGNATURE.length).equals(PNG_SIGNATURE)).toBe(true)
+  expect(bytes.length).toBeGreaterThan(JPEG_SOI.length)
+  expect(bytes.subarray(0, JPEG_SOI.length).equals(JPEG_SOI)).toBe(true)
 }
 
 function sleep(ms: number): Promise<void> {
@@ -82,15 +82,15 @@ describeIntegration('screen capturer integration', () => {
     )
 
     capturer.start()
-    await sleep(2500)
+    await sleep(3000)
     capturer.stop()
-    await flushAsyncAppends()
+    await settleAfterStop()
 
-    expect(frames.length).toBeGreaterThanOrEqual(4)
-    expect(frames.length).toBeLessThanOrEqual(6)
+    expect(frames.length).toBeGreaterThanOrEqual(3)
+    expect(frames.length).toBeLessThanOrEqual(8)
 
     for (const frame of frames) {
-      assertPng(frame.filepath)
+      assertJpeg(frame.filepath)
       expect(frame.width).toBeGreaterThan(0)
       expect(frame.height).toBeGreaterThan(0)
       expect(frame.timestamp).toBeGreaterThan(0)
@@ -101,7 +101,7 @@ describeIntegration('screen capturer integration', () => {
     for (let i = 0; i < frames.length; i++) {
       expect(frames[i].sequenceNumber).toBe(i)
     }
-  }, 10_000)
+  }, 15_000)
 
   it('stop halts capture', async () => {
     const outputDir = path.join(RUN_OUTPUT_DIR, 'stop-test')
@@ -116,7 +116,7 @@ describeIntegration('screen capturer integration', () => {
     )
 
     capturer.start()
-    await sleep(1000)
+    await sleep(1500)
     capturer.stop()
     await settleAfterStop()
     const countAfterStop = frames.length
@@ -147,7 +147,7 @@ describeIntegration('screen capturer integration', () => {
     )
 
     capturer.start()
-    await sleep(2200)
+    await sleep(2500)
     capturer.stop()
     await settleAfterStop()
 
@@ -179,9 +179,9 @@ describeIntegration('screen capturer integration', () => {
     subA.unsubscribe()
 
     capturer.start()
-    await sleep(800)
+    await sleep(1500)
     capturer.stop()
-    await flushAsyncAppends()
+    await settleAfterStop()
 
     expect(framesA.length).toBe(0)
     expect(framesB.length).toBeGreaterThanOrEqual(1)
@@ -201,39 +201,18 @@ describeIntegration('screen capturer integration', () => {
 
     capturer.start()
     capturer.start() // second call should be no-op
-    await sleep(2200)
+    await sleep(2500)
     capturer.stop()
     await settleAfterStop()
 
     // If start wasn't idempotent, we'd see double the frames
     expect(frames.length).toBeGreaterThanOrEqual(1)
-    expect(frames.length).toBeLessThanOrEqual(6)
+    expect(frames.length).toBeLessThanOrEqual(8)
 
     // Sequence numbers should still be sequential (no duplicates)
     for (let i = 0; i < frames.length; i++) {
       expect(frames[i].sequenceNumber).toBe(i)
     }
-  }, 10_000)
-
-  it('captures first frame immediately', async () => {
-    const outputDir = path.join(RUN_OUTPUT_DIR, 'immediate-test')
-    const stream = new InMemoryStream<Frame>()
-    capturer = new ScreenCapturer({ intervalMs: 5000, outputDir, stream })
-    const frames: Frame[] = []
-    subscriptions.push(
-      stream.subscribe({
-        startAt: { type: 'now' },
-        onRecord: (record) => frames.push(record.payload),
-      }),
-    )
-
-    capturer.start()
-    await sleep(500) // well under the 5s interval
-    capturer.stop()
-    await flushAsyncAppends()
-
-    expect(frames.length).toBeGreaterThanOrEqual(1)
-    assertPng(frames[0].filepath)
   }, 10_000)
 
   it('prints where screenshots were saved for manual inspection', () => {

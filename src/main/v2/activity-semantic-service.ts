@@ -4,6 +4,7 @@ export type {
   type V2ActivitySemanticServiceConfig,
   type V2SemanticDebugDumper,
   type V2SemanticEndpointConfig,
+  type SemanticPipelinePreference,
   type V2SemanticAttempt,
   type V2SemanticRoundTripDump,
   type V2SemanticRunDiagnostics,

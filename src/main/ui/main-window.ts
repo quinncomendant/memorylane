@@ -7,15 +7,23 @@
 
 import { app, BrowserWindow, ipcMain, IpcMainInvokeEvent } from 'electron'
 import path from 'node:path'
+import { syncAutoStartSetting } from '../auto-start'
 import log from '../logger'
 import { updateTrayMenu } from './tray'
+import { exportDatabaseZip } from './database-export'
 import { registerWithClaudeDesktop } from '../integrations/claude-desktop'
 import { registerWithCursor } from '../integrations/cursor'
 import { registerWithClaudeCode } from '../integrations/claude-code'
 import type { ApiKeyManager } from '../settings/api-key-manager'
 import type { CustomEndpointManager } from '../settings/custom-endpoint-manager'
 import type { ManagedKeyService } from '../services/managed-key-service'
-import type { CustomEndpointConfig, MainWindowStats, CaptureSettings } from '../../shared/types'
+import type {
+  CustomEndpointConfig,
+  MainWindowStats,
+  CaptureSettings,
+  SemanticPipelineMode,
+  SubscriptionPlan,
+} from '../../shared/types'
 import type { CaptureSettingsManager } from '../settings/capture-settings-manager'
 import type { StorageService } from '../storage'
 import type { UsageTracker } from '../services/usage-tracker'
@@ -23,14 +31,19 @@ import type { UsageTracker } from '../services/usage-tracker'
 interface SemanticService {
   updateApiKey(apiKey: string | null): void
   updateEndpoint(config: CustomEndpointConfig | null, openRouterKey?: string | null): void
+  updatePipelinePreference(preference: SemanticPipelineMode): void
 }
 
 interface MainWindowDependencies {
   capture: {
     isCapturingNow: () => boolean
-    startCapture: () => void
-    stopCapture: () => void
+    requestStartCapture: () => void
+    requestStopCapture: () => void
     forceClose: () => Promise<void>
+    updateActivityWindowConfig: (input: {
+      minActivityDurationMs: number
+      maxActivityDurationMs: number
+    }) => void
   }
   storage: StorageService
   usageTracker: UsageTracker
@@ -173,10 +186,9 @@ export function initMainWindowIPC(dependencies: MainWindowDependencies): void {
     }
 
     if (deps.capture.isCapturingNow()) {
-      void deps.capture.forceClose()
-      deps.capture.stopCapture()
+      deps.capture.requestStopCapture()
     } else {
-      deps.capture.startCapture()
+      deps.capture.requestStartCapture()
     }
 
     void updateTrayMenu()
@@ -284,9 +296,9 @@ export function initMainWindowIPC(dependencies: MainWindowDependencies): void {
     }
   })
 
-  ipcMain.handle('main-window:startCheckout', async () => {
+  ipcMain.handle('main-window:startCheckout', async (_event, plan: SubscriptionPlan) => {
     if (!deps) return
-    await deps.managedKeyService.startCheckout()
+    await deps.managedKeyService.startCheckout(plan)
   })
 
   ipcMain.handle('main-window:openSubscriptionPortal', async () => {
@@ -302,6 +314,14 @@ export function initMainWindowIPC(dependencies: MainWindowDependencies): void {
   // Stats
   ipcMain.handle('main-window:getStats', () => buildStats())
 
+  // Database export
+  ipcMain.handle('main-window:exportDatabaseZip', async () => {
+    if (!deps) {
+      return { success: false, error: 'Dependencies not initialized' }
+    }
+    return exportDatabaseZip({ storage: deps.storage, parentWindow: getMainWindow() })
+  })
+
   // Capture settings
   ipcMain.handle('main-window:getCaptureSettings', () => {
     if (!deps) return null
@@ -315,6 +335,13 @@ export function initMainWindowIPC(dependencies: MainWindowDependencies): void {
       try {
         deps.captureSettingsManager.save(partial)
         deps.captureSettingsManager.applyToConstants()
+        const updated = deps.captureSettingsManager.get()
+        syncAutoStartSetting(updated.autoStartEnabled)
+        deps.capture.updateActivityWindowConfig({
+          minActivityDurationMs: updated.minActivityDurationMs,
+          maxActivityDurationMs: updated.maxActivityDurationMs,
+        })
+        deps.semanticService.updatePipelinePreference(updated.semanticPipelineMode)
         return { success: true }
       } catch (error) {
         const message = error instanceof Error ? error.message : 'Unknown error'
@@ -328,6 +355,13 @@ export function initMainWindowIPC(dependencies: MainWindowDependencies): void {
     try {
       deps.captureSettingsManager.reset()
       deps.captureSettingsManager.applyToConstants()
+      const updated = deps.captureSettingsManager.get()
+      syncAutoStartSetting(updated.autoStartEnabled)
+      deps.capture.updateActivityWindowConfig({
+        minActivityDurationMs: updated.minActivityDurationMs,
+        maxActivityDurationMs: updated.maxActivityDurationMs,
+      })
+      deps.semanticService.updatePipelinePreference(updated.semanticPipelineMode)
       return { success: true }
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Unknown error'

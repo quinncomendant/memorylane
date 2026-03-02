@@ -103,6 +103,8 @@ export interface CustomEndpointStatus {
   hasApiKey: boolean
 }
 
+export type SubscriptionPlan = 'standard' | 'pro'
+
 export type SubscriptionStatus = 'idle' | 'awaiting_checkout' | 'polling' | 'error'
 
 export interface SubscriptionUpdate {
@@ -112,6 +114,13 @@ export interface SubscriptionUpdate {
 
 export interface SaveResult {
   success: boolean
+  error?: string | undefined
+}
+
+export interface DatabaseExportResult {
+  success: boolean
+  cancelled?: boolean | undefined
+  outputPath?: string | undefined
   error?: string | undefined
 }
 
@@ -138,6 +147,7 @@ export interface MainWindowStats {
 }
 
 export interface CaptureSettings {
+  autoStartEnabled: boolean
   visualThreshold: number
   typingDebounceMs: number
   scrollDebounceMs: number
@@ -145,7 +155,10 @@ export interface CaptureSettings {
   minActivityDurationMs: number
   maxActivityDurationMs: number
   maxScreenshotsPerActivity: number
+  semanticPipelineMode: SemanticPipelineMode
 }
+
+export type SemanticPipelineMode = 'auto' | 'video' | 'image'
 
 export type UpdateState = 'idle' | 'downloading' | 'ready'
 
@@ -165,7 +178,7 @@ export interface MainWindowAPI {
   saveCustomEndpoint: (config: CustomEndpointConfig) => Promise<SaveResult>
   deleteCustomEndpoint: () => Promise<SaveResult>
   // Subscription
-  startCheckout: () => Promise<void>
+  startCheckout: (plan: SubscriptionPlan) => Promise<void>
   openSubscriptionPortal: () => Promise<void>
   getSubscriptionStatus: () => Promise<SubscriptionStatus>
   onSubscriptionUpdate: (callback: (update: SubscriptionUpdate) => void) => void
@@ -175,6 +188,8 @@ export interface MainWindowAPI {
   resetCaptureSettings: () => Promise<SaveResult>
   // Stats
   getStats: () => Promise<MainWindowStats>
+  // Database export
+  exportDatabaseZip: () => Promise<DatabaseExportResult>
   // Updater
   getUpdateState: () => Promise<UpdateState>
   onUpdateStateChanged: (callback: (state: UpdateState) => void) => void

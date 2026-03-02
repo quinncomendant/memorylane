@@ -253,6 +253,8 @@ export class SemanticClassifierService {
     prompt +=
       '- Do NOT exaggerate. Switching files = browsing, not editing. Opening a file = reviewing, not working on it.\n'
     prompt +=
+      '- Distinguish preparation from completion. Seeing a form, dialog, or compose window being filled out is NOT evidence it was submitted. Without visible confirmation (success toast, page redirect, confirmation screen), use preparatory verbs like "started," "drafted," "filled out," "was setting up" — NOT completion verbs like "sent," "submitted," "invited," "created."\n'
+    prompt +=
       "- If previous context is provided, only describe what's NEW. If nothing meaningfully new, say so briefly.\n"
     prompt +=
       '- Describe what changed between screenshots: new code, different tabs, updated content, navigation.\n'

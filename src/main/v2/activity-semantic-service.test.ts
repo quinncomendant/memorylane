@@ -2,6 +2,7 @@ import * as fs from 'fs'
 import * as os from 'os'
 import * as path from 'path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { ACTIVITY_CONFIG, VISUAL_DETECTOR_CONFIG } from '@constants'
 import type { V2Activity, V2ActivityFrame } from './activity-types'
 import { V2ActivitySemanticService, V2SemanticFileDebugDumper } from './activity-semantic-service'
 
@@ -15,11 +16,34 @@ vi.mock('../logger', () => ({
 }))
 
 vi.mock('sharp', () => ({
-  default: vi.fn(() => ({
-    resize: vi.fn().mockReturnThis(),
-    jpeg: vi.fn().mockReturnThis(),
-    toBuffer: vi.fn(async () => Buffer.from('mock-jpeg-bytes')),
-  })),
+  default: vi.fn((input: string) => {
+    const seed = [...String(input)]
+      .map((char) => char.charCodeAt(0))
+      .reduce((acc, value) => (acc + value) % 256, 0)
+    return {
+      ensureAlpha: vi.fn().mockReturnThis(),
+      resize: vi.fn().mockReturnThis(),
+      raw: vi.fn().mockReturnThis(),
+      jpeg: vi.fn().mockReturnThis(),
+      toBuffer: vi.fn(async (options?: { resolveWithObject?: boolean }) => {
+        if (options?.resolveWithObject) {
+          const width = 9
+          const height = 8
+          const channels = 4
+          const data = Buffer.alloc(width * height * channels)
+          for (let i = 0; i < data.length; i += channels) {
+            const pixel = i / channels
+            data[i] = (seed + pixel * 17) % 256
+            data[i + 1] = (seed + pixel * 29 + 33) % 256
+            data[i + 2] = (seed + pixel * 41 + 67) % 256
+            data[i + 3] = 255
+          }
+          return { data, info: { width, height, channels } }
+        }
+        return Buffer.from('mock-jpeg-bytes')
+      }),
+    }
+  }),
 }))
 
 const mockSend = vi.fn()
@@ -77,10 +101,12 @@ function makeActivity(params?: {
   startTimestamp?: number
   endTimestamp?: number
   frames?: V2ActivityFrame[]
+  interactions?: V2Activity['interactions']
 }): V2Activity {
+  const startTimestamp = params?.startTimestamp ?? 1_000
   return {
     id: params?.id ?? 'activity-1',
-    startTimestamp: params?.startTimestamp ?? 1_000,
+    startTimestamp,
     endTimestamp: params?.endTimestamp ?? 61_000,
     context: {
       appName: 'Code',
@@ -88,9 +114,9 @@ function makeActivity(params?: {
       windowTitle: 'src/main/v2/activity-semantic-service.ts',
       tld: undefined,
     },
-    interactions: [
-      { type: 'keyboard', timestamp: (params?.startTimestamp ?? 1_000) + 1_000, keyCount: 12 },
-      { type: 'scroll', timestamp: (params?.startTimestamp ?? 1_000) + 2_000 },
+    interactions: params?.interactions ?? [
+      { type: 'keyboard', timestamp: startTimestamp + 1_000, keyCount: 12 },
+      { type: 'scroll', timestamp: startTimestamp + 2_000 },
     ],
     frames: params?.frames ?? [],
     provenance: {
@@ -111,12 +137,18 @@ function response(summary: string, promptTokens = 10, completionTokens = 5): unk
 
 describe('V2ActivitySemanticService', () => {
   const tempDirs: string[] = []
+  const originalSnapshotCap = ACTIVITY_CONFIG.MAX_SCREENSHOTS_FOR_LLM
+  const originalVisualThreshold = VISUAL_DETECTOR_CONFIG.DHASH_THRESHOLD_PERCENT
 
   beforeEach(() => {
     vi.clearAllMocks()
+    ACTIVITY_CONFIG.MAX_SCREENSHOTS_FOR_LLM = originalSnapshotCap
+    VISUAL_DETECTOR_CONFIG.DHASH_THRESHOLD_PERCENT = originalVisualThreshold
   })
 
   afterEach(() => {
+    ACTIVITY_CONFIG.MAX_SCREENSHOTS_FOR_LLM = originalSnapshotCap
+    VISUAL_DETECTOR_CONFIG.DHASH_THRESHOLD_PERCENT = originalVisualThreshold
     while (tempDirs.length > 0) {
       const dir = tempDirs.pop()
       if (dir) {
@@ -372,6 +404,77 @@ describe('V2ActivitySemanticService', () => {
     expect(diagnostics?.chosenMode).toBe('snapshot')
   })
 
+  it('supports image-only mode without attempting video', async () => {
+    const tempDir = createTempDir()
+    tempDirs.push(tempDir)
+    const videoPath = createVideoFile(tempDir)
+
+    const frames = [
+      makeFrame(createImageFile(tempDir, 'f0.png'), 1_000, 0),
+      makeFrame(createImageFile(tempDir, 'f1.png'), 25_000, 1),
+    ]
+
+    const send = vi.fn().mockResolvedValue(response('image summary only'))
+    const service = new V2ActivitySemanticService(undefined, {
+      client: { chat: { send } },
+      pipelinePreference: 'image',
+      usageTracker: { recordUsage: vi.fn() },
+    })
+
+    const result = await service.summarizeFromVideo({
+      activity: makeActivity({ frames }),
+      videoPath,
+      ocrText: 'ignored',
+    })
+
+    expect(result).toBe('image summary only')
+    expect(send).toHaveBeenCalledTimes(1)
+    expect(
+      send.mock.calls[0][0].messages[0].content.some(
+        (item: { type: string }) => item.type === 'input_video',
+      ),
+    ).toBe(false)
+    const diagnostics = service.getLastRunDiagnostics()
+    expect(diagnostics?.pipelinePreference).toBe('image')
+    expect(diagnostics?.attempts.map((attempt) => attempt.mode)).toEqual(['snapshot'])
+    expect(diagnostics?.chosenMode).toBe('snapshot')
+  })
+
+  it('supports video-only mode without snapshot fallback', async () => {
+    const tempDir = createTempDir()
+    tempDirs.push(tempDir)
+    const videoPath = createVideoFile(tempDir)
+
+    const frames = [
+      makeFrame(createImageFile(tempDir, 'f0.png'), 1_000, 0),
+      makeFrame(createImageFile(tempDir, 'f1.png'), 25_000, 1),
+    ]
+
+    const send = vi.fn().mockRejectedValue(new Error('video failed'))
+    const service = new V2ActivitySemanticService(undefined, {
+      client: { chat: { send } },
+      pipelinePreference: 'video',
+      usageTracker: { recordUsage: vi.fn() },
+    })
+
+    const result = await service.summarizeFromVideo({
+      activity: makeActivity({ frames }),
+      videoPath,
+      ocrText: 'ignored',
+    })
+
+    expect(result).toBe('')
+    expect(send.mock.calls.map((call) => call[0].model)).toEqual(DEFAULT_VIDEO_MODELS)
+    const diagnostics = service.getLastRunDiagnostics()
+    expect(diagnostics?.pipelinePreference).toBe('video')
+    expect(diagnostics?.attempts.map((attempt) => attempt.mode)).toEqual([
+      'video',
+      'video',
+      'video',
+    ])
+    expect(diagnostics?.chosenMode).toBeNull()
+  })
+
   it('uses custom endpoint model for both video and snapshot attempts in v2', async () => {
     const tempDir = createTempDir()
     tempDirs.push(tempDir)
@@ -526,9 +629,55 @@ describe('V2ActivitySemanticService', () => {
     ])
   })
 
-  it('snapshot sampling obeys maxSnapshots=6', async () => {
+  it('snapshot sampling selects frames nearest to interaction anchors', async () => {
     const tempDir = createTempDir()
     tempDirs.push(tempDir)
+    VISUAL_DETECTOR_CONFIG.DHASH_THRESHOLD_PERCENT = 0
+
+    const frames = [
+      makeFrame(createImageFile(tempDir, 'f0.png'), 0, 0),
+      makeFrame(createImageFile(tempDir, 'f1.png'), 10_000, 1),
+      makeFrame(createImageFile(tempDir, 'f2.png'), 20_000, 2),
+      makeFrame(createImageFile(tempDir, 'f3.png'), 30_000, 3),
+    ]
+
+    const send = vi.fn().mockResolvedValue(response('snapshot summary'))
+    const service = new V2ActivitySemanticService(undefined, {
+      client: { chat: { send } },
+      videoModels: ['video/fail'],
+      snapshotModels: ['snapshot/success'],
+      usageTracker: { recordUsage: vi.fn() },
+    })
+
+    await service.summarizeFromVideo({
+      activity: makeActivity({
+        frames,
+        startTimestamp: 0,
+        endTimestamp: 30_000,
+        interactions: [
+          { type: 'keyboard', timestamp: 9_100 },
+          { type: 'scroll', timestamp: 18_900 },
+          { type: 'click', timestamp: 28_500 },
+        ],
+      }),
+      videoPath: path.join(tempDir, 'missing.mp4'),
+      ocrText: 'ignored',
+    })
+
+    const diagnostics = service.getLastRunDiagnostics()
+    expect(diagnostics?.selectedSnapshotPaths.map((filepath) => path.basename(filepath))).toEqual([
+      'f0.png',
+      'f1.png',
+      'f2.png',
+      'f3.png',
+    ])
+  })
+
+  it('snapshot sampling obeys ACTIVITY_CONFIG.MAX_SCREENSHOTS_PER_ACTIVITY=6', async () => {
+    const tempDir = createTempDir()
+    tempDirs.push(tempDir)
+    ACTIVITY_CONFIG.MAX_SCREENSHOTS_PER_ACTIVITY = 6
+    VISUAL_DETECTOR_CONFIG.DHASH_THRESHOLD_PERCENT = 0
 
     const frames: V2ActivityFrame[] = []
     for (let i = 0; i < 12; i++) {
@@ -544,13 +693,17 @@ describe('V2ActivitySemanticService', () => {
 
     const service = new V2ActivitySemanticService(undefined, {
       client: { chat: { send } },
-      maxSnapshots: 6,
-      minSnapshotGapMs: 0,
       usageTracker: { recordUsage: vi.fn() },
     })
 
     await service.summarizeFromVideo({
-      activity: makeActivity({ frames }),
+      activity: makeActivity({
+        frames,
+        interactions: frames.map((frame) => ({
+          type: 'keyboard',
+          timestamp: frame.frame.timestamp,
+        })),
+      }),
       videoPath: path.join(tempDir, 'missing.mp4'),
       ocrText: 'ignored',
     })
@@ -559,9 +712,50 @@ describe('V2ActivitySemanticService', () => {
     expect(diagnostics?.selectedSnapshotPaths).toHaveLength(6)
   })
 
-  it('snapshot sampling obeys minSnapshotGapMs=20_000', async () => {
+  it('uses MAX_SCREENSHOTS_FOR_LLM as snapshot cap by default', async () => {
     const tempDir = createTempDir()
     tempDirs.push(tempDir)
+    ACTIVITY_CONFIG.MAX_SCREENSHOTS_FOR_LLM = 3
+    VISUAL_DETECTOR_CONFIG.DHASH_THRESHOLD_PERCENT = 0
+
+    const frames = [
+      makeFrame(createImageFile(tempDir, 'f0.png'), 0, 0),
+      makeFrame(createImageFile(tempDir, 'f1.png'), 10_000, 1),
+      makeFrame(createImageFile(tempDir, 'f2.png'), 20_000, 2),
+      makeFrame(createImageFile(tempDir, 'f3.png'), 30_000, 3),
+      makeFrame(createImageFile(tempDir, 'f4.png'), 40_000, 4),
+    ]
+
+    const send = vi.fn().mockResolvedValue(response('snapshot summary'))
+    const service = new V2ActivitySemanticService(undefined, {
+      client: { chat: { send } },
+      videoModels: ['video/fail'],
+      snapshotModels: ['snapshot/success'],
+      usageTracker: { recordUsage: vi.fn() },
+    })
+
+    await service.summarizeFromVideo({
+      activity: makeActivity({
+        frames,
+        startTimestamp: 0,
+        endTimestamp: 40_000,
+        interactions: frames.map((frame) => ({
+          type: 'keyboard',
+          timestamp: frame.frame.timestamp,
+        })),
+      }),
+      videoPath: path.join(tempDir, 'missing.mp4'),
+      ocrText: 'ignored',
+    })
+
+    const diagnostics = service.getLastRunDiagnostics()
+    expect(diagnostics?.selectedSnapshotPaths).toHaveLength(3)
+  })
+
+  it('snapshot sampling has no synthetic gap filter when visual threshold is disabled', async () => {
+    const tempDir = createTempDir()
+    tempDirs.push(tempDir)
+    VISUAL_DETECTOR_CONFIG.DHASH_THRESHOLD_PERCENT = 0
 
     const frames = [
       makeFrame(createImageFile(tempDir, 'f0.png'), 0, 0),
@@ -578,13 +772,16 @@ describe('V2ActivitySemanticService', () => {
       client: { chat: { send } },
       videoModels: ['video/fail'],
       snapshotModels: ['snapshot/success'],
-      minSnapshotGapMs: 20_000,
-      maxSnapshots: 10,
       usageTracker: { recordUsage: vi.fn() },
     })
 
     await service.summarizeFromVideo({
-      activity: makeActivity({ frames, startTimestamp: 0, endTimestamp: 60_000 }),
+      activity: makeActivity({
+        frames,
+        startTimestamp: 0,
+        endTimestamp: 60_000,
+        interactions: frames.map((frame) => ({ type: 'scroll', timestamp: frame.frame.timestamp })),
+      }),
       videoPath: path.join(tempDir, 'missing.mp4'),
       ocrText: 'ignored',
     })
@@ -592,15 +789,61 @@ describe('V2ActivitySemanticService', () => {
     const diagnostics = service.getLastRunDiagnostics()
     expect(diagnostics?.selectedSnapshotPaths.map((filepath) => path.basename(filepath))).toEqual([
       'f0.png',
+      'f1.png',
       'f2.png',
+      'f3.png',
       'f4.png',
       'f5.png',
+    ])
+  })
+
+  it('applies visual threshold to drop near-identical middle frames', async () => {
+    const tempDir = createTempDir()
+    tempDirs.push(tempDir)
+    VISUAL_DETECTOR_CONFIG.DHASH_THRESHOLD_PERCENT = 101
+
+    const frames = [
+      makeFrame(createImageFile(tempDir, 'f0.png'), 0, 0),
+      makeFrame(createImageFile(tempDir, 'f1.png'), 10_000, 1),
+      makeFrame(createImageFile(tempDir, 'f2.png'), 20_000, 2),
+      makeFrame(createImageFile(tempDir, 'f3.png'), 30_000, 3),
+    ]
+
+    const send = vi.fn().mockResolvedValue(response('snapshot summary'))
+    const service = new V2ActivitySemanticService(undefined, {
+      client: { chat: { send } },
+      videoModels: ['video/fail'],
+      snapshotModels: ['snapshot/success'],
+      usageTracker: { recordUsage: vi.fn() },
+    })
+
+    await service.summarizeFromVideo({
+      activity: makeActivity({
+        frames,
+        startTimestamp: 0,
+        endTimestamp: 30_000,
+        interactions: [
+          { type: 'keyboard', timestamp: 9_000 },
+          { type: 'keyboard', timestamp: 19_000 },
+          { type: 'keyboard', timestamp: 29_000 },
+        ],
+      }),
+      videoPath: path.join(tempDir, 'missing.mp4'),
+      ocrText: 'ignored',
+    })
+
+    const diagnostics = service.getLastRunDiagnostics()
+    expect(diagnostics?.selectedSnapshotPaths.map((filepath) => path.basename(filepath))).toEqual([
+      'f0.png',
+      'f3.png',
     ])
   })
 
   it('snapshot sampling always includes first and last when available', async () => {
     const tempDir = createTempDir()
     tempDirs.push(tempDir)
+    ACTIVITY_CONFIG.MAX_SCREENSHOTS_PER_ACTIVITY = 3
+    VISUAL_DETECTOR_CONFIG.DHASH_THRESHOLD_PERCENT = 0
 
     const frames = [
       makeFrame(createImageFile(tempDir, 'first.png'), 1_000, 0),
@@ -615,8 +858,6 @@ describe('V2ActivitySemanticService', () => {
       client: { chat: { send } },
       videoModels: ['video/fail'],
       snapshotModels: ['snapshot/success'],
-      minSnapshotGapMs: 20_000,
-      maxSnapshots: 3,
       usageTracker: { recordUsage: vi.fn() },
     })
 

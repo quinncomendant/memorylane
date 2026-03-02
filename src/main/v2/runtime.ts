@@ -15,6 +15,7 @@ import { DefaultActivityTransformer } from './activity-transformer'
 import { SqliteActivitySink } from './sqlite-activity-sink'
 import { FfmpegVideoStitcher } from './video/video-stitcher'
 import { V2ActivitySemanticService, V2SemanticFileDebugDumper } from './activity-semantic-service'
+import type { SemanticPipelinePreference } from './activity-semantic-service'
 import {
   createV2CaptureController,
   type RuntimeCapture,
@@ -34,6 +35,7 @@ export interface V2MainRuntime {
 
 export async function createV2MainRuntime(params?: {
   onCaptureStateChanged?: () => void
+  semanticPipelinePreference?: SemanticPipelinePreference
 }): Promise<V2MainRuntime> {
   const onCaptureStateChanged = params?.onCaptureStateChanged ?? (() => undefined)
 
@@ -57,6 +59,7 @@ export async function createV2MainRuntime(params?: {
   const semanticService = new V2ActivitySemanticService(apiKeyManager.getApiKey() || undefined, {
     usageTracker,
     debugDumper,
+    pipelinePreference: params?.semanticPipelinePreference,
     endpointConfig: savedEndpoint
       ? {
           serverURL: savedEndpoint.serverURL,

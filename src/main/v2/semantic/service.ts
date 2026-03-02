@@ -1,4 +1,5 @@
 import { OpenRouter } from '@openrouter/sdk'
+import { ACTIVITY_CONFIG, VISUAL_DETECTOR_CONFIG } from '@constants'
 import log from '../../logger'
 import { UsageTracker } from '../../services/usage-tracker'
 import type { V2Activity } from '../activity-types'
@@ -20,6 +21,7 @@ import type {
   ChatContentItem,
   ChatRequest,
   SemanticMode,
+  SemanticPipelinePreference,
   SemanticChatClient,
   V2ActivitySemanticServiceConfig,
   V2SemanticEndpointConfig,
@@ -27,13 +29,12 @@ import type {
 } from './types'
 
 export class V2ActivitySemanticService implements ActivitySemanticService {
-  private client: SemanticChatClient | null
+  private client: SemanticChatClient | null = null
   private readonly videoModels: string[]
   private readonly snapshotModels: string[]
-  private readonly maxSnapshots: number
-  private readonly minSnapshotGapMs: number
   private readonly maxVideoBytes: number
   private readonly requestTimeoutMs: number
+  private pipelinePreference: SemanticPipelinePreference
   private readonly usageTracker: V2ActivitySemanticServiceConfig['usageTracker']
   private readonly debugDumper: V2ActivitySemanticServiceConfig['debugDumper']
   private readonly usesInjectedClient: boolean
@@ -52,19 +53,12 @@ export class V2ActivitySemanticService implements ActivitySemanticService {
     this.snapshotModels = config?.snapshotModels?.length
       ? [...config.snapshotModels]
       : [...DEFAULT_SNAPSHOT_MODELS]
-    this.maxSnapshots = config?.maxSnapshots ?? 6
-    this.minSnapshotGapMs = config?.minSnapshotGapMs ?? 20_000
     this.maxVideoBytes = config?.maxVideoBytes ?? 25 * 1024 * 1024
     this.requestTimeoutMs = config?.requestTimeoutMs ?? 45_000
+    this.pipelinePreference = this.normalizePipelinePreference(config?.pipelinePreference)
     this.usageTracker = config?.usageTracker ?? new UsageTracker()
     this.debugDumper = config?.debugDumper
 
-    if (!Number.isInteger(this.maxSnapshots) || this.maxSnapshots <= 0) {
-      throw new Error('maxSnapshots must be a positive integer')
-    }
-    if (!Number.isFinite(this.minSnapshotGapMs) || this.minSnapshotGapMs < 0) {
-      throw new Error('minSnapshotGapMs must be >= 0')
-    }
     if (!Number.isFinite(this.maxVideoBytes) || this.maxVideoBytes <= 0) {
       throw new Error('maxVideoBytes must be > 0')
     }
@@ -154,6 +148,14 @@ export class V2ActivitySemanticService implements ActivitySemanticService {
     this.client = null
   }
 
+  updatePipelinePreference(preference: SemanticPipelinePreference): void {
+    this.pipelinePreference = this.normalizePipelinePreference(preference)
+  }
+
+  getPipelinePreference(): SemanticPipelinePreference {
+    return this.pipelinePreference
+  }
+
   async summarizeFromVideo(input: {
     activity: V2Activity
     videoPath: string
@@ -164,6 +166,7 @@ export class V2ActivitySemanticService implements ActivitySemanticService {
 
     const diagnostics: V2SemanticRunDiagnostics = {
       activityId: input.activity.id,
+      pipelinePreference: this.pipelinePreference,
       promptChars: 0,
       chosenMode: null,
       chosenModel: null,
@@ -183,65 +186,85 @@ export class V2ActivitySemanticService implements ActivitySemanticService {
     const videoPrompt = buildSemanticPrompt(input.activity, 'video')
     diagnostics.promptChars = videoPrompt.length
 
-    if (this.shouldSkipCustomEndpointVideo()) {
-      diagnostics.fallbackReason = 'custom endpoint model marked video-unsupported (session)'
-      log.info(
-        '[V2ActivitySemanticService] Skipping video summarization for custom endpoint model',
-        JSON.stringify({
-          activityId: input.activity.id,
-          serverURL: this.customEndpointServerURL,
-          model: this.customEndpointModel,
-        }),
-      )
-    } else {
-      const videoAsset = tryLoadVideoAsDataUrl(input.videoPath, this.maxVideoBytes)
-      if (videoAsset) {
-        diagnostics.videoSizeBytes = videoAsset.sizeBytes
-        diagnostics.videoMimeType = videoAsset.mimeType
+    const shouldAttemptVideo = this.pipelinePreference !== 'image'
+    const shouldAttemptSnapshots = this.pipelinePreference !== 'video'
 
-        const videoResult = await trySemanticModelChain({
-          client: this.client,
-          requestTimeoutMs: this.requestTimeoutMs,
-          mode: 'video',
-          models: this.getEffectiveVideoModels(),
-          prompt: videoPrompt,
-          diagnostics,
-          buildContent: () => [
-            { type: 'text', text: videoPrompt },
-            { type: 'input_video', videoUrl: { url: videoAsset.dataUrl } },
-          ],
-          onRecordUsage: ({ model, promptTokens, completionTokens }) => {
-            recordSemanticUsageSafe({
-              usageTracker: this.usageTracker,
-              model,
-              promptTokens,
-              completionTokens,
-            })
-          },
-          onDumpRoundTrip: (roundTrip) => this.dumpRoundTripSafe(roundTrip),
-          onAttemptFailed: ({ mode, model, error }) => {
-            if (mode === 'video' && this.isLikelyVideoUnsupportedError(error)) {
-              this.markCustomEndpointVideoUnsupported(model, error)
-            }
-          },
-        })
-
-        if (videoResult) {
-          diagnostics.chosenMode = 'video'
-          diagnostics.chosenModel = videoResult.model
-          return videoResult.summary
-        }
-
-        diagnostics.fallbackReason = 'all video models failed'
+    if (shouldAttemptVideo) {
+      if (this.shouldSkipCustomEndpointVideo()) {
+        diagnostics.fallbackReason = 'custom endpoint model marked video-unsupported (session)'
+        log.info(
+          '[V2ActivitySemanticService] Skipping video summarization for custom endpoint model',
+          JSON.stringify({
+            activityId: input.activity.id,
+            serverURL: this.customEndpointServerURL,
+            model: this.customEndpointModel,
+          }),
+        )
       } else {
-        diagnostics.fallbackReason = 'video unavailable or exceeds configured size limit'
+        const videoAsset = tryLoadVideoAsDataUrl(input.videoPath, this.maxVideoBytes)
+        if (videoAsset) {
+          diagnostics.videoSizeBytes = videoAsset.sizeBytes
+          diagnostics.videoMimeType = videoAsset.mimeType
+
+          const videoResult = await trySemanticModelChain({
+            client: this.client,
+            requestTimeoutMs: this.requestTimeoutMs,
+            mode: 'video',
+            models: this.getEffectiveVideoModels(),
+            prompt: videoPrompt,
+            diagnostics,
+            buildContent: () => [
+              { type: 'text', text: videoPrompt },
+              { type: 'input_video', videoUrl: { url: videoAsset.dataUrl } },
+            ],
+            onRecordUsage: ({ model, promptTokens, completionTokens }) => {
+              recordSemanticUsageSafe({
+                usageTracker: this.usageTracker,
+                model,
+                promptTokens,
+                completionTokens,
+              })
+            },
+            onDumpRoundTrip: (roundTrip) => this.dumpRoundTripSafe(roundTrip),
+            onAttemptFailed: ({ mode, model, error }) => {
+              if (mode === 'video' && this.isLikelyVideoUnsupportedError(error)) {
+                this.markCustomEndpointVideoUnsupported(model, error)
+              }
+            },
+          })
+
+          if (videoResult) {
+            diagnostics.chosenMode = 'video'
+            diagnostics.chosenModel = videoResult.model
+            return videoResult.summary
+          }
+
+          diagnostics.fallbackReason = 'all video models failed'
+        } else {
+          diagnostics.fallbackReason = 'video unavailable or exceeds configured size limit'
+        }
       }
+    } else {
+      diagnostics.fallbackReason = 'video pipeline disabled by preference'
     }
 
-    const selectedSnapshots = selectSnapshotFrames({
+    if (!shouldAttemptSnapshots) {
+      if (!diagnostics.fallbackReason) {
+        diagnostics.fallbackReason = 'snapshot pipeline disabled by preference'
+      }
+      return ''
+    }
+
+    const snapshotCap = this.resolveSnapshotCap()
+    const selectedSnapshots = await selectSnapshotFrames({
       frames: input.activity.frames,
-      maxSnapshots: this.maxSnapshots,
-      minSnapshotGapMs: this.minSnapshotGapMs,
+      maxSnapshots: snapshotCap,
+      startAnchorTimestamp: input.activity.startTimestamp,
+      endAnchorTimestamp: input.activity.endTimestamp,
+      interactionAnchorTimestamps: input.activity.interactions.map(
+        (interaction) => interaction.timestamp,
+      ),
+      visualThresholdPercent: VISUAL_DETECTOR_CONFIG.DHASH_THRESHOLD_PERCENT,
     })
     diagnostics.selectedSnapshotPaths = selectedSnapshots.map((frame) => frame.frame.filepath)
 
@@ -375,6 +398,23 @@ export class V2ActivitySemanticService implements ActivitySemanticService {
   private isLikelyVideoUnsupportedError(message: string): boolean {
     if (!this.isCustomEndpoint) return false
     return isLikelyCustomEndpointVideoUnsupportedError(message)
+  }
+
+  private normalizePipelinePreference(
+    preference: SemanticPipelinePreference | null | undefined,
+  ): SemanticPipelinePreference {
+    if (preference === 'video' || preference === 'image') {
+      return preference
+    }
+    return 'auto'
+  }
+
+  private resolveSnapshotCap(): number {
+    const fromSettings = ACTIVITY_CONFIG.MAX_SCREENSHOTS_FOR_LLM
+    if (Number.isInteger(fromSettings) && fromSettings > 0) {
+      return fromSettings
+    }
+    return 1
   }
 
   private dumpRoundTripSafe(input: {

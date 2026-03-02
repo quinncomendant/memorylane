@@ -26,7 +26,6 @@ export function CustomEndpointSection({
   endpointStatus,
   onEndpointChanged,
 }: CustomEndpointSectionProps): React.JSX.Element {
-  const [open, setOpen] = useState(false)
   const [editing, setEditing] = useState(false)
   const [serverURL, setServerURL] = useState('')
   const [model, setModel] = useState('')
@@ -34,7 +33,7 @@ export function CustomEndpointSection({
   const [saving, setSaving] = useState(false)
   const [deleting, setDeleting] = useState(false)
 
-  const showForm = open && (editing || !endpointStatus.enabled)
+  const showForm = editing || !endpointStatus.enabled
 
   const handleSave = useCallback(async () => {
     const url = serverURL.trim()
@@ -99,22 +98,8 @@ export function CustomEndpointSection({
 
   return (
     <div className="space-y-2">
-      <button
-        type="button"
-        className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors"
-        onClick={() => setOpen((v) => !v)}
-      >
-        <span className="text-[10px]">{open ? '\u25BC' : '\u25B6'}</span>
-        Custom endpoint
-        {endpointStatus.enabled && (
-          <Badge variant="secondary" className="text-[10px] px-1.5 py-0">
-            Active
-          </Badge>
-        )}
-      </button>
-
-      {open && endpointStatus.enabled && !editing && (
-        <div className="pl-3.5 space-y-2">
+      {endpointStatus.enabled && !editing && (
+        <div className="space-y-2">
           <div className="flex flex-wrap gap-1.5">
             <Badge variant="outline" className="font-mono text-xs">
               {endpointStatus.serverURL}
@@ -145,7 +130,7 @@ export function CustomEndpointSection({
       )}
 
       {showForm && (
-        <div className="pl-3.5 space-y-2">
+        <div className="space-y-2">
           <Input
             type="text"
             placeholder="http://localhost:11434/v1"

@@ -9,6 +9,7 @@ import {
 } from '../../shared/constants'
 
 const DEFAULTS: CaptureSettings = {
+  autoStartEnabled: true,
   visualThreshold: VISUAL_DETECTOR_CONFIG.DHASH_THRESHOLD_PERCENT,
   typingDebounceMs: INTERACTION_MONITOR_CONFIG.TYPING_DEBOUNCE_MS,
   scrollDebounceMs: INTERACTION_MONITOR_CONFIG.SCROLL_DEBOUNCE_MS,
@@ -16,6 +17,7 @@ const DEFAULTS: CaptureSettings = {
   minActivityDurationMs: ACTIVITY_CONFIG.MIN_ACTIVITY_DURATION_MS,
   maxActivityDurationMs: ACTIVITY_CONFIG.MAX_ACTIVITY_DURATION_MS,
   maxScreenshotsPerActivity: ACTIVITY_CONFIG.MAX_SCREENSHOTS_PER_ACTIVITY,
+  semanticPipelineMode: 'auto',
 }
 
 export class CaptureSettingsManager {

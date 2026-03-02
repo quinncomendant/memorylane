@@ -35,6 +35,7 @@ describe('CaptureSettingsManager', () => {
     it('defaults match the constants values', () => {
       const manager = new CaptureSettingsManager(configPath)
       const defaults = manager.getDefaults()
+      expect(defaults.autoStartEnabled).toBe(true)
       expect(defaults.visualThreshold).toBe(VISUAL_DETECTOR_CONFIG.DHASH_THRESHOLD_PERCENT)
       expect(defaults.typingDebounceMs).toBe(INTERACTION_MONITOR_CONFIG.TYPING_DEBOUNCE_MS)
       expect(defaults.scrollDebounceMs).toBe(INTERACTION_MONITOR_CONFIG.SCROLL_DEBOUNCE_MS)
@@ -42,6 +43,7 @@ describe('CaptureSettingsManager', () => {
       expect(defaults.minActivityDurationMs).toBe(ACTIVITY_CONFIG.MIN_ACTIVITY_DURATION_MS)
       expect(defaults.maxActivityDurationMs).toBe(ACTIVITY_CONFIG.MAX_ACTIVITY_DURATION_MS)
       expect(defaults.maxScreenshotsPerActivity).toBe(ACTIVITY_CONFIG.MAX_SCREENSHOTS_PER_ACTIVITY)
+      expect(defaults.semanticPipelineMode).toBe('auto')
     })
 
     it('get() returns a copy, not the internal reference', () => {
@@ -56,9 +58,10 @@ describe('CaptureSettingsManager', () => {
   describe('save and load', () => {
     it('persists settings to disk', () => {
       const manager = new CaptureSettingsManager(configPath)
-      manager.save({ typingDebounceMs: 5000 })
+      manager.save({ autoStartEnabled: true, typingDebounceMs: 5000 })
       expect(fs.existsSync(configPath)).toBe(true)
       const raw = JSON.parse(fs.readFileSync(configPath, 'utf-8'))
+      expect(raw.autoStartEnabled).toBe(true)
       expect(raw.typingDebounceMs).toBe(5000)
     })
 
@@ -73,12 +76,19 @@ describe('CaptureSettingsManager', () => {
 
     it('a new instance loads previously saved settings', () => {
       const manager1 = new CaptureSettingsManager(configPath)
-      manager1.save({ typingDebounceMs: 7000, visualThreshold: 3 })
+      manager1.save({
+        autoStartEnabled: true,
+        typingDebounceMs: 7000,
+        visualThreshold: 3,
+        semanticPipelineMode: 'image',
+      })
 
       const manager2 = new CaptureSettingsManager(configPath)
       const settings = manager2.get()
+      expect(settings.autoStartEnabled).toBe(true)
       expect(settings.typingDebounceMs).toBe(7000)
       expect(settings.visualThreshold).toBe(3)
+      expect(settings.semanticPipelineMode).toBe('image')
     })
 
     it('unknown keys in saved file are ignored (partial merge uses defaults)', () => {

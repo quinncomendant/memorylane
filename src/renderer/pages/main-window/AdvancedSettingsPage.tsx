@@ -86,6 +86,7 @@ export function AdvancedSettingsPage({ onBack }: { onBack: () => void }): React.
   const [keyStatus, setKeyStatus] = useState<KeyStatus | null>(null)
   const [llmOpen, setLlmOpen] = useState(false)
   const [dataOpen, setDataOpen] = useState(false)
+  const [startupOpen, setStartupOpen] = useState(false)
   const [captureOpen, setCaptureOpen] = useState(false)
 
   const load = useCallback(async () => {
@@ -104,15 +105,26 @@ export function AdvancedSettingsPage({ onBack }: { onBack: () => void }): React.
   }, [load])
 
   const save = useCallback(
-    (settings: CaptureSettings) => {
-      void api.saveCaptureSettings(settings).then(() => {
-        toast.success('Settings saved', { id: 'auto-save', duration: 1500 })
+    (settings: Partial<CaptureSettings>, successMessage = 'Settings saved') => {
+      void api.saveCaptureSettings(settings).then((result) => {
+        if (!result.success) {
+          toast.error(result.error ?? 'Failed to save settings', {
+            id: 'auto-save-error',
+            duration: 3000,
+          })
+          return
+        }
+
+        toast.success(successMessage, { id: 'auto-save', duration: 1500 })
       })
     },
     [api],
   )
 
-  type NumericCaptureSetting = Exclude<keyof CaptureSettings, 'semanticPipelineMode'>
+  type NumericCaptureSetting = Exclude<
+    keyof CaptureSettings,
+    'autoStartEnabled' | 'semanticPipelineMode'
+  >
 
   const set = (key: NumericCaptureSetting, value: number): void => {
     setForm((prev) => (prev ? { ...prev, [key]: value } : prev))
@@ -130,6 +142,13 @@ export function AdvancedSettingsPage({ onBack }: { onBack: () => void }): React.
     const next = { ...form, semanticPipelineMode: mode }
     setForm(next)
     save(next)
+  }
+
+  const setAutoStartEnabled = (enabled: boolean): void => {
+    if (!form) return
+    const next = { ...form, autoStartEnabled: enabled }
+    setForm(next)
+    save(next, enabled ? 'Launch at login enabled' : 'Launch at login disabled')
   }
 
   const handleReset = async (): Promise<void> => {
@@ -184,6 +203,55 @@ export function AdvancedSettingsPage({ onBack }: { onBack: () => void }): React.
       </section>
 
       <div className="border-t border-border" />
+
+      {form && (
+        <>
+          <section>
+            <SectionToggle
+              label="App Startup"
+              open={startupOpen}
+              onToggle={() => setStartupOpen((v) => !v)}
+            />
+            {startupOpen && (
+              <div className="mt-3 space-y-3">
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="space-y-1">
+                      <p className="text-xs font-medium text-muted-foreground">Launch at login</p>
+                      <p className="text-xs text-muted-foreground">
+                        Packaged macOS and Windows builds can start automatically and stay hidden in
+                        the tray. Development builds save the preference but never register a login
+                        item.
+                      </p>
+                    </div>
+                    <div className="grid shrink-0 grid-cols-2 gap-2">
+                      <Button
+                        variant={form.autoStartEnabled ? 'default' : 'outline'}
+                        size="sm"
+                        onClick={() => setAutoStartEnabled(true)}
+                      >
+                        On
+                      </Button>
+                      <Button
+                        variant={!form.autoStartEnabled ? 'default' : 'outline'}
+                        size="sm"
+                        onClick={() => setAutoStartEnabled(false)}
+                      >
+                        Off
+                      </Button>
+                    </div>
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    Some operating systems may still require approval in system startup settings.
+                  </p>
+                </div>
+              </div>
+            )}
+          </section>
+
+          <div className="border-t border-border" />
+        </>
+      )}
 
       {/* ── Data Management ── */}
       <section>

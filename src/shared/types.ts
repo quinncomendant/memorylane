@@ -147,6 +147,7 @@ export interface MainWindowStats {
 }
 
 export interface CaptureSettings {
+  autoStartEnabled: boolean
   visualThreshold: number
   typingDebounceMs: number
   scrollDebounceMs: number

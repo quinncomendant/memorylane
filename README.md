@@ -24,7 +24,7 @@ Desktop app that sees what you see, stores summaries about it locally and lets y
 
 **Screenshots → local storage → MCP into AI chats**
 
-🎬 [Demo](https://www.loom.com/share/513b213e82d14323999e419fa434576d)
+🎬 [Demo](https://youtu.be/WfeZODpGV8k)
 
 <p align="center">
   <img src="assets/readme/screenshot.jpeg" width="32%" />

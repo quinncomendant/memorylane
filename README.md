@@ -67,6 +67,7 @@ MemoryLane captures your screen to give AI assistants context about what you're 
 ### What works today
 
 - Event-driven screen capture (typing, clicking, scrolling, app switches, visual changes)
+- Configurable launch at login with tray-only startup for packaged macOS and Windows builds
 - OCR via macOS Vision framework and native Windows OCR
 - AI-powered activity summarization (Mistral Small, GPT-5 Nano, Grok-4.1 Fast, Gemini Flash Lite via OpenRouter)
 - Custom endpoint support for OpenAI-compatible providers (including local models like Ollama)

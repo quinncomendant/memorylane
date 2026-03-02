@@ -1,16 +1,18 @@
-# MemoryLane v0.13.2
+# MemoryLane v0.13.3
 
 MemoryLane is a macOS system tray app that captures your screen activity, processes it with OCR and AI summarization, and makes it searchable through an MCP server — giving AI assistants like Claude and Cursor memory of what you've been working on.
 
 ## What's Changed
 
-- **v2 snapshots now behave closer to v1 (main update)** — reused v1 snapshot settings and tightened frame retention rules so fallback snapshots better match the proven v1 capture behavior
-- **More accurate activity boundaries and frame timing** — fixed event/window boundary start timestamps and callback-time frame timestamps to improve temporal consistency in produced activities
-- **Sharper snapshot boundary selection** — constrained boundary anchor selection by direction and added tests around late events and boundary edges
-- **Settings and app polish** — added semantic mode selection in advanced settings and fixed macOS tray auto-update quit behavior
+- **Tray-only auto-start now works as expected (main update)** — packaged macOS and Windows builds can register a login item, relaunch hidden in the tray, and stay out of the way at sign-in
+- **Capture state survives relaunches and wake-ups** — the app now persists whether capture was enabled, then restores that preference on startup and after power-state resume
+- **Single-instance startup is more reliable** — a second launch now focuses the existing app window instead of creating conflicting tray behavior
+- **Advanced settings now expose startup controls** — added a Launch at login toggle with clearer success/error handling when saving settings
 
 ## Features
 
+- **Configurable launch at login** — packaged macOS and Windows builds can start automatically and remain hidden in the tray
+- **Persistent capture preference** — remembers whether capture should resume after restart or wake
 - **V2 activity pipeline** — new runtime path for event/capture ingestion, activity extraction, transformation, and persistence
 - **Video-first activity understanding** — stitched activity clips for richer semantic interpretation with fallback to frame snapshots
 - **Pattern detection foundation** — stores reusable activity patterns for future higher-level context and analysis workflows
@@ -61,4 +63,4 @@ After launching:
 
 ## Full Changelog
 
-https://github.com/deusXmachina-dev/memorylane/compare/v0.13.1...v0.13.2
+https://github.com/deusXmachina-dev/memorylane/compare/v0.13.2...v0.13.3

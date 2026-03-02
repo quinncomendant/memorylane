@@ -8,8 +8,10 @@
 import { app } from 'electron'
 import { config as loadEnv } from 'dotenv'
 import { shouldStartHiddenOnLaunch } from './auto-start'
+import { createCaptureCoordinator } from './capture-orchestrator'
 import log from './logger'
 import { startPowerMonitoring, shouldPause } from './power-monitor'
+import { CaptureStateManager } from './settings/capture-state-manager'
 import { CaptureSettingsManager } from './settings/capture-settings-manager'
 import { PatternDetector } from './services/pattern-detector'
 import { createV2MainRuntime, type V2MainRuntime } from './v2/runtime'
@@ -70,6 +72,7 @@ app.on('ready', async () => {
   }
 
   const captureSettingsManager = new CaptureSettingsManager()
+  const captureStateManager = new CaptureStateManager()
   captureSettingsManager.applyToConstants()
 
   const { setupTray, updateTrayMenu } = await import('./ui/tray')
@@ -85,9 +88,15 @@ app.on('ready', async () => {
   })
 
   patternDetector = new PatternDetector(runtime.storage, runtime.apiKeyManager)
+  const captureCoordinator = createCaptureCoordinator({
+    capture: runtime.capture,
+    captureStateManager,
+    isPaused: shouldPause,
+    patternDetector,
+  })
 
   setupTray({
-    capture: runtime.capture,
+    capture: captureCoordinator.controls,
     storage: runtime.storage,
   })
 
@@ -97,7 +106,7 @@ app.on('ready', async () => {
   })
 
   initMainWindowIPC({
-    capture: runtime.capture,
+    capture: captureCoordinator.controls,
     storage: runtime.storage,
     usageTracker: runtime.usageTracker,
     apiKeyManager: runtime.apiKeyManager,
@@ -111,6 +120,8 @@ app.on('ready', async () => {
   if (keySource === 'none' || keySource === 'managed') {
     void runtime.managedKeyService.tryFetchKey()
   }
+
+  captureCoordinator.resumeCaptureIfDesired('startup')
 
   if (!startHidden) {
     openMainWindow()
@@ -129,12 +140,7 @@ app.on('ready', async () => {
       runtime.capture.stopCapture()
     },
     onResume: () => {
-      if (!runtime) return
-      if (runtime.capture.isCapturingNow() || shouldPause()) return
-
-      log.info('[Main] Resuming capture (power state: active)')
-      runtime.capture.startCapture()
-      patternDetector?.scheduleRun()
+      captureCoordinator.resumeCaptureIfDesired('resume')
     },
   })
 

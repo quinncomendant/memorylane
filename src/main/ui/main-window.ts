@@ -37,8 +37,8 @@ interface SemanticService {
 interface MainWindowDependencies {
   capture: {
     isCapturingNow: () => boolean
-    startCapture: () => void
-    stopCapture: () => void
+    requestStartCapture: () => void
+    requestStopCapture: () => void
     forceClose: () => Promise<void>
     updateActivityWindowConfig: (input: {
       minActivityDurationMs: number
@@ -186,10 +186,9 @@ export function initMainWindowIPC(dependencies: MainWindowDependencies): void {
     }
 
     if (deps.capture.isCapturingNow()) {
-      void deps.capture.forceClose()
-      deps.capture.stopCapture()
+      deps.capture.requestStopCapture()
     } else {
-      deps.capture.startCapture()
+      deps.capture.requestStartCapture()
     }
 
     void updateTrayMenu()

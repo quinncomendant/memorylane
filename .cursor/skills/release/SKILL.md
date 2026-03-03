@@ -70,12 +70,30 @@ git commit -m "release: vX.Y.Z"
 git tag vX.Y.Z
 ```
 
+Create the tag only after the commit succeeds. Do not run `git commit` and `git tag` in parallel.
+
 If the version is a prerelease, keep the same commit format and tag shape:
 
 ```bash
 git commit -m "release: vX.Y.Z-label.N"
 git tag vX.Y.Z-label.N
 ```
+
+After tagging, verify it points at the release commit:
+
+```bash
+git rev-parse HEAD
+git rev-parse vX.Y.Z
+```
+
+For prereleases:
+
+```bash
+git rev-parse HEAD
+git rev-parse vX.Y.Z-label.N
+```
+
+These SHAs must match before pushing.
 
 ### 8. Push the commit and tag
 

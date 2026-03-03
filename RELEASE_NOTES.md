@@ -1,20 +1,20 @@
-# MemoryLane v0.13.5
+# MemoryLane v0.13.6
 
 MemoryLane is a desktop tray app that captures your screen activity, processes it with OCR and AI summarization, and makes it searchable through an MCP server - giving AI assistants like Claude and Cursor memory of what you've been working on. Releases are published from version tags: normal semver tags create standard releases, and suffixed versions such as `-beta.1` create prereleases.
 
 ## What's Changed
 
-- **Windows is now fully supported** - the release pipeline now ships signed Windows installers and updater metadata alongside macOS from the same version tag
-- **Native Windows screenshot capture is in the main app path** - the recorder now uses the dedicated Windows screenshot sidecar with packaging and integration coverage
-- **Windows OCR and capture flows are more resilient** - native OCR handling, recorder integration, and sidecar management were tightened for packaged builds
-- **Timeline and semantic extraction got minor fixes** - activity formatting, transformer behavior, and storage shape were cleaned up for more reliable results
-- **Release automation is simpler** - pushing `vX.Y.Z` now publishes a standard release, while suffixed versions such as `vX.Y.Z-beta.1` publish prereleases automatically
+- **Release assets now use stable filenames** - macOS and Windows updater assets now publish under fixed names so `latest*.yml` and the GitHub release stay aligned
+- **Release publishing is stricter** - the workflow now uploads, verifies, and publishes an explicit asset list for both platforms instead of relying on broad globs
+- **The activity pipeline naming is simpler** - the runtime code was flattened out of `src/main/v2` and V2-prefixed types and functions were renamed without changing behavior
+- **Dead legacy code was removed** - unused processor, recorder, and MCP indirection layers were deleted to keep the capture and search stack easier to maintain
+- **Build metadata was cleaned up** - release workflow action updates and package-lock cleanup reduce noise in release builds
 
 ## Features
 
 - **Launch at login**
 - **Persistent capture preference** - remembers whether capture should resume after restart or wake
-- **V2 activity pipeline** - new runtime path for event/capture ingestion, activity extraction, transformation, and persistence
+- **Unified activity pipeline** - runtime path for event/capture ingestion, activity extraction, transformation, and persistence
 - **Video-first activity understanding** - stitched activity clips for richer semantic interpretation with fallback to frame snapshots
 - **Pattern detection foundation** - stores reusable activity patterns for future higher-level context and analysis workflows
 - **Automatic updates** - background update checks with one-click install from the tray menu
@@ -51,7 +51,7 @@ curl -fsSL https://raw.githubusercontent.com/deusXmachina-dev/memorylane/main/in
 
 This downloads the latest macOS stable release and installs it to `/Applications`. No Gatekeeper warnings.
 
-For Windows, download the latest `MemoryLane Setup *.exe` from GitHub Releases.
+For Windows, download `MemoryLane-Setup.exe` from the latest GitHub release.
 
 After launching:
 
@@ -65,4 +65,4 @@ After launching:
 
 ## Full Changelog
 
-https://github.com/deusXmachina-dev/memorylane/compare/v0.13.4...v0.13.5
+https://github.com/deusXmachina-dev/memorylane/compare/v0.13.5...v0.13.6

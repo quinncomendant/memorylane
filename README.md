@@ -14,7 +14,7 @@ This downloads the latest release and installs it to `/Applications`.
 
 ### Windows
 
-1. Download the latest `MemoryLane Setup *.exe` from [GitHub Releases](https://github.com/deusXmachina-dev/memorylane/releases).
+1. Download `MemoryLane-Setup.exe` from the latest [GitHub Releases](https://github.com/deusXmachina-dev/memorylane/releases) entry.
 2. Run the installer and finish setup.
 3. Launch MemoryLane from the Start menu.
 

@@ -24,7 +24,7 @@ swiftc -O \
   -target arm64-apple-macos13.0 \
   -framework ScreenCaptureKit \
   -framework CoreMedia \
-  "$ROOT_DIR/src/main/v2/recorder/swift/screenshot.swift" \
+  "$ROOT_DIR/src/main/recorder/swift/screenshot.swift" \
   -o "$OUT_DIR/screenshot"
 
 echo "Swift binaries built successfully"

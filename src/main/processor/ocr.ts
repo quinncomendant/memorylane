@@ -5,7 +5,7 @@ import { createOcrBackendError } from './ocr-errors'
 import { extractTextWindowsNative } from './ocr-windows-native'
 import { OCR_CONFIG } from '@constants'
 import log from '../logger'
-import type { ActivityOcrService } from '../v2/activity-transformer-types'
+import type { ActivityOcrService } from '../activity-transformer-types'
 
 type OcrBackend = (filepath: string) => Promise<string>
 

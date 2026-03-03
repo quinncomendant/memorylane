@@ -1,4 +1,4 @@
-import type { ActivityRepository } from '../storage/activity-repository'
+import type { ActivityRepository } from './storage/activity-repository'
 import type { ActivitySink, V2ExtractedActivity } from './activity-extraction-types'
 import type { V2Activity } from './activity-types'
 

@@ -9,7 +9,7 @@ import type {
 import type { V2Activity } from './activity-types'
 import { InMemoryStream } from './streams/in-memory-stream'
 
-vi.mock('../logger', () => ({
+vi.mock('./logger', () => ({
   default: {
     debug: vi.fn(),
     info: vi.fn(),

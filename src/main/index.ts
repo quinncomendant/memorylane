@@ -1,7 +1,7 @@
 /**
  * MemoryLane - Main Process Entry Point
  *
- * Full tray app running exclusively on the v2 timeline-first pipeline.
+ * Tray app running the timeline-first pipeline.
  * The MCP server runs separately via mcp-entry.ts under ELECTRON_RUN_AS_NODE=1.
  */
 
@@ -18,7 +18,7 @@ import { startPowerMonitoring, shouldPause } from './power-monitor'
 import { CaptureStateManager } from './settings/capture-state-manager'
 import { CaptureSettingsManager } from './settings/capture-settings-manager'
 import { PatternDetector } from './services/pattern-detector'
-import { createV2MainRuntime, type V2MainRuntime } from './v2/runtime'
+import { createV2MainRuntime, type V2MainRuntime } from './runtime'
 
 if (!app.requestSingleInstanceLock()) {
   app.quit()
@@ -153,8 +153,5 @@ app.on('ready', async () => {
     },
   })
 
-  log.info(
-    'MemoryLane started (v2 pipeline). Frame output dir:',
-    runtime.capture.getScreenshotsDir(),
-  )
+  log.info('MemoryLane started. Frame output dir:', runtime.capture.getScreenshotsDir())
 })

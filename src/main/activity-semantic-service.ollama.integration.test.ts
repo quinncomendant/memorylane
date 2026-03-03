@@ -6,14 +6,14 @@ import type { V2Activity, V2ActivityFrame } from './activity-types'
 import { V2ActivitySemanticService, V2SemanticFileDebugDumper } from './activity-semantic-service'
 import { FfmpegVideoStitcher } from './video/video-stitcher'
 
-const RUN_INTEGRATION = process.env.RUN_V2_SEMANTIC_OLLAMA_INTEGRATION === '1'
+const RUN_INTEGRATION = process.env.RUN_SEMANTIC_OLLAMA_INTEGRATION === '1'
 const describeIntegration = RUN_INTEGRATION ? describe.sequential : describe.skip
 
-const OLLAMA_BASE_URL = process.env.V2_SEMANTIC_OLLAMA_BASE_URL ?? 'http://localhost:11434/v1'
-const OLLAMA_MODEL = process.env.V2_SEMANTIC_OLLAMA_MODEL ?? 'moondream:latest'
-const OLLAMA_API_KEY = process.env.V2_SEMANTIC_OLLAMA_API_KEY
+const OLLAMA_BASE_URL = process.env.SEMANTIC_OLLAMA_BASE_URL ?? 'http://localhost:11434/v1'
+const OLLAMA_MODEL = process.env.SEMANTIC_OLLAMA_MODEL ?? 'moondream:latest'
+const OLLAMA_API_KEY = process.env.SEMANTIC_OLLAMA_API_KEY
 
-const OUTPUT_ROOT_DIR = path.resolve(process.cwd(), '.debug-v2-semantic-ollama')
+const OUTPUT_ROOT_DIR = path.resolve(process.cwd(), '.debug-semantic-ollama')
 const RUN_OUTPUT_DIR = path.join(OUTPUT_ROOT_DIR, new Date().toISOString().replace(/[:.]/g, '-'))
 
 async function createFrame(

@@ -1,7 +1,7 @@
-import type { EventWindow, InteractionContext } from '../../shared/types'
+import type { EventWindow, InteractionContext } from '../shared/types'
 import type { Frame } from './recorder/screen-capturer'
 import type { Offset } from './streams/stream'
-import { ACTIVITY_CONFIG } from '../../shared/constants'
+import { ACTIVITY_CONFIG } from '../shared/constants'
 
 export interface V2ActivityFrame {
   offset: Offset

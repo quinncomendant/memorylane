@@ -1,15 +1,15 @@
 import * as fs from 'fs'
 import * as path from 'path'
 import { app } from 'electron'
-import log from '../logger'
-import { ApiKeyManager } from '../settings/api-key-manager'
-import { CustomEndpointManager } from '../settings/custom-endpoint-manager'
-import { DeviceIdentity } from '../settings/device-identity'
-import { ManagedKeyService } from '../services/managed-key-service'
-import { StorageService } from '../storage'
-import { EmbeddingService } from '../processor/embedding'
-import { activityOcrService } from '../processor/ocr'
-import { UsageTracker } from '../services/usage-tracker'
+import log from './logger'
+import { ApiKeyManager } from './settings/api-key-manager'
+import { CustomEndpointManager } from './settings/custom-endpoint-manager'
+import { DeviceIdentity } from './settings/device-identity'
+import { ManagedKeyService } from './services/managed-key-service'
+import { StorageService } from './storage'
+import { EmbeddingService } from './processor/embedding'
+import { activityOcrService } from './processor/ocr'
+import { UsageTracker } from './services/usage-tracker'
 import { createV2PipelineHarness } from './pipeline-harness'
 import { DefaultActivityTransformer } from './activity-transformer'
 import { SqliteActivitySink } from './sqlite-activity-sink'
@@ -39,7 +39,7 @@ export async function createV2MainRuntime(params?: {
 }): Promise<V2MainRuntime> {
   const onCaptureStateChanged = params?.onCaptureStateChanged ?? (() => undefined)
 
-  const interactionMonitor = await import('../recorder/interaction-monitor')
+  const interactionMonitor = await import('./recorder/interaction-monitor')
 
   const apiKeyManager = new ApiKeyManager()
   const customEndpointManager = new CustomEndpointManager()

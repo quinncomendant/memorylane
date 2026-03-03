@@ -2,7 +2,7 @@ import * as path from 'path'
 import * as os from 'os'
 import { pipeline, env } from '@huggingface/transformers'
 import log from '../logger'
-import type { ActivityEmbeddingService } from '../v2/activity-transformer-types'
+import type { ActivityEmbeddingService } from '../activity-transformer-types'
 
 // 'all-MiniLM-L6-v2' is a good balance of speed and quality for local embeddings.
 const MODEL_NAME = 'Xenova/all-MiniLM-L6-v2'

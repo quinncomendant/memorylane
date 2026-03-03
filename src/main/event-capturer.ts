@@ -1,7 +1,7 @@
 import { v4 as uuidv4 } from 'uuid'
 import { EVENT_CAPTURER_CONFIG } from '@constants'
-import { EventWindow, InteractionContext } from '../../shared/types'
-import log from '../logger'
+import { EventWindow, InteractionContext } from '../shared/types'
+import log from './logger'
 import type { DurableStream } from './streams/stream'
 
 interface PendingWindow {

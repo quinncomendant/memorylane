@@ -1,7 +1,7 @@
 import * as fs from 'fs'
 import * as path from 'path'
 import { createHash } from 'crypto'
-import log from '../../logger'
+import log from '../logger'
 import type { V2SemanticDebugDumper, V2SemanticRoundTripDump } from './types'
 
 export interface V2SemanticFileDebugDumperConfig {

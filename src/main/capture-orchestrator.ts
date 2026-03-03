@@ -1,7 +1,7 @@
 import log from './logger'
 import type { PatternDetector } from './services/pattern-detector'
 import type { CaptureStateManager } from './settings/capture-state-manager'
-import type { RuntimeCapture } from './v2/capture-controller'
+import type { RuntimeCapture } from './capture-controller'
 
 export interface CaptureCoordinatorControls {
   isCapturingNow(): boolean

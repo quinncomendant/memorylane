@@ -1,5 +1,5 @@
-import type { InteractionContext, EventWindow } from '../../shared/types'
-import { SCREENSHOT_CLEANUP_CONFIG } from '../../shared/constants'
+import type { InteractionContext, EventWindow } from '../shared/types'
+import { SCREENSHOT_CLEANUP_CONFIG } from '../shared/constants'
 import { EventCapturer } from './event-capturer'
 import { ActivityProducer } from './activity-producer'
 import type { V2Activity, V2ActivityProducerConfig } from './activity-types'

@@ -5,7 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { cleanupActivityFiles } from './activity-cleanup'
 import type { V2Activity } from './activity-types'
 
-vi.mock('../logger', () => ({
+vi.mock('./logger', () => ({
   default: {
     debug: vi.fn(),
     info: vi.fn(),

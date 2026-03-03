@@ -1,4 +1,4 @@
-import type { InteractionContext } from '../../../shared/types'
+import type { InteractionContext } from '../../shared/types'
 import type { V2Activity } from '../activity-types'
 import type { SemanticMode } from './types'
 

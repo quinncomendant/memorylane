@@ -137,9 +137,9 @@ debug-pipeline/
 .debug-screen-capturer/
 .debug-screen-capturer-win/
 .debug-video-stitcher/
-.debug-v2-semantic/
-.debug-v2-semantic-live-smoke/
-.debug-v2-semantic-ollama/
+.debug-semantic/
+.debug-semantic-live-smoke/
+.debug-semantic-ollama/
 
 # Compiled Swift binaries (built during packaging)
 build/swift/

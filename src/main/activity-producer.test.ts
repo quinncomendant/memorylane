@@ -1,13 +1,13 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { ACTIVITY_CONFIG } from '@constants'
-import type { EventWindow, InteractionContext } from '../../shared/types'
+import type { EventWindow, InteractionContext } from '../shared/types'
 import { InMemoryStream } from './streams/in-memory-stream'
 import type { StreamSubscription } from './streams/stream'
 import type { Frame } from './recorder/screen-capturer'
 import type { V2Activity } from './activity-types'
 import { ActivityProducer } from './activity-producer'
 
-vi.mock('../logger', () => ({
+vi.mock('./logger', () => ({
   default: {
     debug: vi.fn(),
     info: vi.fn(),

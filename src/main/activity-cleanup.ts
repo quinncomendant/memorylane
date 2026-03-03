@@ -1,7 +1,7 @@
 import * as fs from 'fs'
 import * as path from 'path'
-import log from '../logger'
-import { SCREENSHOT_CLEANUP_CONFIG } from '../../shared/constants'
+import log from './logger'
+import { SCREENSHOT_CLEANUP_CONFIG } from '../shared/constants'
 import type { V2Activity } from './activity-types'
 
 export function cleanupActivityFiles(activity: V2Activity, videoOutputDir: string): void {

@@ -10,7 +10,7 @@ import type {
   CapturedFrame,
 } from './recorder/native-screenshot'
 
-vi.mock('../logger', () => ({
+vi.mock('./logger', () => ({
   default: {
     debug: vi.fn(),
     info: vi.fn(),

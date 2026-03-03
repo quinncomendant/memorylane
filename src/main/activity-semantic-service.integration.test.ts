@@ -7,12 +7,12 @@ import { V2ActivitySemanticService, V2SemanticFileDebugDumper } from './activity
 import { FfmpegVideoStitcher } from './video/video-stitcher'
 
 const RUN_INTEGRATION =
-  process.env.RUN_V2_SEMANTIC_INTEGRATION === '1' &&
+  process.env.RUN_SEMANTIC_INTEGRATION === '1' &&
   typeof process.env.OPENROUTER_API_KEY === 'string' &&
   process.env.OPENROUTER_API_KEY.length > 0
 const describeIntegration = RUN_INTEGRATION ? describe.sequential : describe.skip
 
-const OUTPUT_ROOT_DIR = path.resolve(process.cwd(), '.debug-v2-semantic')
+const OUTPUT_ROOT_DIR = path.resolve(process.cwd(), '.debug-semantic')
 const RUN_OUTPUT_DIR = path.join(OUTPUT_ROOT_DIR, new Date().toISOString().replace(/[:.]/g, '-'))
 
 async function createFrame(

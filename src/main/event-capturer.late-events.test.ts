@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import type { InteractionContext, EventWindow } from '../../shared/types'
+import type { InteractionContext, EventWindow } from '../shared/types'
 import { InMemoryStream } from './streams/in-memory-stream'
 import type { StreamSubscription } from './streams/stream'
 
@@ -11,7 +11,7 @@ vi.mock('@constants', () => ({
   },
 }))
 
-vi.mock('../logger', () => ({
+vi.mock('./logger', () => ({
   default: {
     debug: vi.fn(),
     info: vi.fn(),

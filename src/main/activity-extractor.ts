@@ -1,4 +1,4 @@
-import log from '../logger'
+import log from './logger'
 import type { V2Activity } from './activity-types'
 import {
   DEFAULT_V2_ACTIVITY_EXTRACTOR_CONFIG,

@@ -1,7 +1,7 @@
-import log from '../logger'
+import log from './logger'
 import type { V2PipelineHarness } from './pipeline-harness'
 
-type InteractionMonitorModule = typeof import('../recorder/interaction-monitor')
+type InteractionMonitorModule = typeof import('./recorder/interaction-monitor')
 type CaptureState = 'stopped' | 'starting' | 'running' | 'stopping'
 
 export interface RuntimeCapture {

@@ -9,9 +9,9 @@ import type {
   ActivityVideoAsset,
 } from './activity-transformer-types'
 import type { Frame } from './recorder/screen-capturer'
-import log from '../logger'
+import log from './logger'
 
-vi.mock('../logger', () => ({
+vi.mock('./logger', () => ({
   default: {
     debug: vi.fn(),
     info: vi.fn(),

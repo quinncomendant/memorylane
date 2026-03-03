@@ -6,7 +6,7 @@ import { ACTIVITY_CONFIG, VISUAL_DETECTOR_CONFIG } from '@constants'
 import type { V2Activity, V2ActivityFrame } from './activity-types'
 import { V2ActivitySemanticService, V2SemanticFileDebugDumper } from './activity-semantic-service'
 
-vi.mock('../logger', () => ({
+vi.mock('./logger', () => ({
   default: {
     debug: vi.fn(),
     info: vi.fn(),
@@ -111,7 +111,7 @@ function makeActivity(params?: {
     context: {
       appName: 'Code',
       bundleId: 'com.microsoft.VSCode',
-      windowTitle: 'src/main/v2/activity-semantic-service.ts',
+      windowTitle: 'src/main/activity-semantic-service.ts',
       tld: undefined,
     },
     interactions: params?.interactions ?? [

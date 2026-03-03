@@ -8,7 +8,7 @@ import type {
   ActivityEmbeddingService,
 } from './activity-transformer-types'
 import type { SemanticPipelinePreference } from './activity-semantic-service'
-import log from '../logger'
+import log from './logger'
 
 export interface DefaultActivityTransformerConfig {
   outputDir: string

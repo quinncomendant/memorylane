@@ -34,12 +34,12 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           ref: ${{ env.RELEASE_TAG }}
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
           node-version: ${{ env.NODE_VERSION }}
 
@@ -109,12 +109,12 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           ref: ${{ env.RELEASE_TAG }}
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: npm
@@ -149,7 +149,7 @@ jobs:
         run: npm run make:mac
 
       - name: Upload macOS release files
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: release-macos-${{ env.RELEASE_TAG }}
           retention-days: 3
@@ -169,12 +169,12 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           ref: ${{ env.RELEASE_TAG }}
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: npm
@@ -193,7 +193,7 @@ jobs:
         run: npm run make:win
 
       - name: Upload Windows release files
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: release-windows-${{ env.RELEASE_TAG }}
           retention-days: 3
@@ -213,17 +213,33 @@ jobs:
 
     steps:
       - name: Checkout tagged ref
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           ref: ${{ env.RELEASE_TAG }}
 
-      - name: Download all workflow artifacts
-        uses: actions/download-artifact@v5
+      - name: Download macOS artifact
+        uses: actions/download-artifact@v8
         with:
-          path: release-assets
+          name: release-macos-${{ env.RELEASE_TAG }}
+          path: release-assets/release-macos-${{ env.RELEASE_TAG }}
+
+      - name: Download Windows artifact
+        uses: actions/download-artifact@v8
+        with:
+          name: release-windows-${{ env.RELEASE_TAG }}
+          path: release-assets/release-windows-${{ env.RELEASE_TAG }}
 
       - name: Show release files
         run: find release-assets -type f | sort
+
+      - name: Verify release files
+        run: |
+          test -f "release-assets/release-macos-${RELEASE_TAG}/MemoryLane-arm64-mac.dmg"
+          test -f "release-assets/release-macos-${RELEASE_TAG}/MemoryLane-arm64-mac.dmg.blockmap"
+          test -f "release-assets/release-macos-${RELEASE_TAG}/MemoryLane-arm64-mac.zip"
+          test -f "release-assets/release-macos-${RELEASE_TAG}/MemoryLane-arm64-mac.zip.blockmap"
+          test -f "release-assets/release-macos-${RELEASE_TAG}/latest-mac.yml"
+          test -f "release-assets/release-windows-${RELEASE_TAG}/latest.yml"
 
       - name: Create GitHub release
         uses: softprops/action-gh-release@v2

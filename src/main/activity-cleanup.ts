@@ -4,24 +4,28 @@ import log from './logger'
 import { SCREENSHOT_CLEANUP_CONFIG } from '../shared/constants'
 import type { Activity } from './activity-types'
 
+function deleteFileIfPresent(filepath: string, label: 'frame' | 'video'): boolean {
+  try {
+    fs.rmSync(filepath, { force: true })
+    return fs.existsSync(filepath) === false
+  } catch {
+    log.warn(`[ActivityCleanup] Failed to delete ${label}: ${filepath}`)
+    return false
+  }
+}
+
 export function cleanupActivityFiles(activity: Activity, videoOutputDir: string): void {
   let deleted = 0
 
   for (const activityFrame of activity.frames) {
-    try {
-      fs.unlinkSync(activityFrame.frame.filepath)
+    if (deleteFileIfPresent(activityFrame.frame.filepath, 'frame')) {
       deleted++
-    } catch {
-      log.warn(`[ActivityCleanup] Failed to delete frame: ${activityFrame.frame.filepath}`)
     }
   }
 
   const videoPath = `${videoOutputDir}/${activity.id}.mp4`
-  try {
-    fs.unlinkSync(videoPath)
+  if (deleteFileIfPresent(videoPath, 'video')) {
     deleted++
-  } catch {
-    log.warn(`[ActivityCleanup] Failed to delete video: ${videoPath}`)
   }
 
   if (deleted > 0) {

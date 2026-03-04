@@ -4,6 +4,7 @@ import * as os from 'os'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { cleanupActivityFiles } from './activity-cleanup'
 import type { Activity } from './activity-types'
+import log from './logger'
 
 vi.mock('./logger', () => ({
   default: {
@@ -51,6 +52,7 @@ describe('cleanupActivityFiles', () => {
 
   beforeEach(() => {
     tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'cleanup-test-'))
+    vi.clearAllMocks()
   })
 
   afterEach(() => {
@@ -81,6 +83,7 @@ describe('cleanupActivityFiles', () => {
     ])
 
     expect(() => cleanupActivityFiles(activity, tmpDir)).not.toThrow()
+    expect(log.warn).not.toHaveBeenCalled()
   })
 
   it('with zero frames is a no-op', () => {

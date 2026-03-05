@@ -203,6 +203,8 @@ export class SlackIntegrationService {
   private async pollWatchedChannels(): Promise<void> {
     if (!this.client || !this.activeConfig) throw new Error('Slack client not initialized')
 
+    const ownerUserId = this.activeConfig.ownerUserId.trim()
+
     for (const channelId of this.activeConfig.watchedChannelIds) {
       const oldest = this.lastSeenByChannel.get(channelId) ?? '0'
       const response = await this.client.conversations.history({
@@ -213,14 +215,26 @@ export class SlackIntegrationService {
       })
 
       const messages = ((response.messages ?? []) as SlackMessage[])
-        .filter((message) => isPlainUserMessage(message) && message.user !== this.botUserId)
+        .filter((message) => isPlainUserMessage(message))
         .sort((left, right) => compareTs(left.ts, right.ts))
 
       if (messages.length === 0) continue
 
-      for (const message of messages) {
+      this.lastSeenByChannel.set(channelId, messages[messages.length - 1].ts)
+
+      const actionableMessages = messages.filter(
+        (message) =>
+          message.user !== this.botUserId && (!ownerUserId || message.user !== ownerUserId),
+      )
+
+      if (actionableMessages.length !== messages.length) {
+        log.info(
+          `[SlackIntegration] Skipped ${messages.length - actionableMessages.length} non-actionable message(s) in ${channelId}`,
+        )
+      }
+
+      for (const message of actionableMessages) {
         await this.queueApproval(message, channelId)
-        this.lastSeenByChannel.set(channelId, message.ts)
       }
     }
   }

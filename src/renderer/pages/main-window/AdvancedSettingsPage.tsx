@@ -1,8 +1,9 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { toast } from 'sonner'
 import { Slider } from '@components/ui/slider'
 import { Label } from '@components/ui/label'
 import { Button } from '@components/ui/button'
+import { Input } from '@components/ui/input'
 import { DatabaseExportSection } from './components/DatabaseExportSection'
 import { CustomEndpointSection } from './components/CustomEndpointSection'
 import { ManageKeySection } from './components/ManageKeySection'
@@ -15,6 +16,7 @@ import type {
   SemanticPipelineMode,
   SlackIntegrationStatus,
 } from '@types'
+import { detectHotkeyPlatform, formatHotkeyForDisplay, toRecordedAccelerator } from './hotkey-utils'
 
 function sliderVal(v: number | readonly number[]): number {
   return typeof v === 'number' ? v : v[0]
@@ -96,6 +98,7 @@ function SectionToggle({
 
 export function AdvancedSettingsPage({ onBack }: { onBack: () => void }): React.JSX.Element {
   const api = useMainWindowAPI()
+  const hotkeyPlatform = useMemo(() => detectHotkeyPlatform(), [])
   const [form, setForm] = useState<CaptureSettings | null>(null)
   const [endpointStatus, setEndpointStatus] = useState<CustomEndpointStatus | null>(null)
   const [keyStatus, setKeyStatus] = useState<KeyStatus | null>(null)
@@ -105,6 +108,7 @@ export function AdvancedSettingsPage({ onBack }: { onBack: () => void }): React.
   const [startupOpen, setStartupOpen] = useState(false)
   const [captureOpen, setCaptureOpen] = useState(false)
   const [slackOpen, setSlackOpen] = useState(false)
+  const [recordingHotkey, setRecordingHotkey] = useState(false)
 
   const load = useCallback(async () => {
     const [s, ep, ks, slack] = await Promise.all([
@@ -142,7 +146,7 @@ export function AdvancedSettingsPage({ onBack }: { onBack: () => void }): React.
 
   type NumericCaptureSetting = Exclude<
     keyof CaptureSettings,
-    'autoStartEnabled' | 'semanticPipelineMode'
+    'autoStartEnabled' | 'semanticPipelineMode' | 'captureHotkeyAccelerator'
   >
 
   const set = (key: NumericCaptureSetting, value: number): void => {
@@ -153,22 +157,76 @@ export function AdvancedSettingsPage({ onBack }: { onBack: () => void }): React.
     if (!form) return
     const next = { ...form, [key]: value }
     setForm(next)
-    save(next)
+    save({ [key]: value } as Pick<CaptureSettings, NumericCaptureSetting>)
   }
 
   const setSemanticPipelineMode = (mode: SemanticPipelineMode): void => {
     if (!form) return
     const next = { ...form, semanticPipelineMode: mode }
     setForm(next)
-    save(next)
+    save({ semanticPipelineMode: mode })
   }
 
   const setAutoStartEnabled = (enabled: boolean): void => {
     if (!form) return
     const next = { ...form, autoStartEnabled: enabled }
     setForm(next)
-    save(next, enabled ? 'Launch at login enabled' : 'Launch at login disabled')
+    save(
+      { autoStartEnabled: enabled },
+      enabled ? 'Launch at login enabled' : 'Launch at login disabled',
+    )
   }
+
+  const setCaptureHotkeyAccelerator = (value: string): void => {
+    setForm((prev) => (prev ? { ...prev, captureHotkeyAccelerator: value } : prev))
+  }
+
+  useEffect(() => {
+    if (!recordingHotkey) return
+
+    const onKeyDown = (event: KeyboardEvent): void => {
+      event.preventDefault()
+      event.stopPropagation()
+
+      if (event.key === 'Escape') {
+        setRecordingHotkey(false)
+        return
+      }
+
+      const accelerator = toRecordedAccelerator(event)
+      if (!accelerator) return
+
+      setCaptureHotkeyAccelerator(accelerator)
+      setRecordingHotkey(false)
+      void api
+        .saveCaptureSettings({ captureHotkeyAccelerator: accelerator })
+        .then(async (result) => {
+          if (!result.success) {
+            toast.error(result.error ?? 'Failed to save settings', {
+              id: 'auto-save-error',
+              duration: 3000,
+            })
+            await load()
+            return
+          }
+
+          toast.success('Capture hotkey saved', { id: 'auto-save', duration: 1500 })
+          await load()
+        })
+        .catch(async () => {
+          toast.error('Failed to save settings', { id: 'auto-save-error', duration: 3000 })
+          await load()
+        })
+    }
+
+    window.addEventListener('keydown', onKeyDown, true)
+    return () => {
+      window.removeEventListener('keydown', onKeyDown, true)
+    }
+  }, [api, load, recordingHotkey, setCaptureHotkeyAccelerator])
+
+  const hotkeyPrimaryModifier = hotkeyPlatform === 'mac' ? 'Cmd' : 'Ctrl'
+  const hotkeyAltModifier = hotkeyPlatform === 'mac' ? 'Option' : 'Alt'
 
   const handleReset = async (): Promise<void> => {
     await api.resetCaptureSettings()
@@ -357,6 +415,36 @@ export function AdvancedSettingsPage({ onBack }: { onBack: () => void }): React.
                     onChange={(v) => set('semanticRequestTimeoutMs', v)}
                     onCommit={(v) => commit('semanticRequestTimeoutMs', v)}
                   />
+                </div>
+
+                <div className="space-y-2">
+                  <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                    <Label className="text-xs font-medium text-muted-foreground sm:w-24 sm:shrink-0">
+                      Capture Hotkey
+                    </Label>
+                    <div className="flex flex-1 items-center gap-2">
+                      <Input
+                        value={formatHotkeyForDisplay(
+                          form.captureHotkeyAccelerator,
+                          hotkeyPlatform,
+                        )}
+                        readOnly
+                      />
+                      <Button
+                        type="button"
+                        variant={recordingHotkey ? 'destructive' : 'outline'}
+                        size="sm"
+                        onClick={() => setRecordingHotkey((current) => !current)}
+                      >
+                        {recordingHotkey ? 'Cancel' : 'Record'}
+                      </Button>
+                    </div>
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    {recordingHotkey
+                      ? 'Press your key combination now (Esc to cancel).'
+                      : `Example: ${hotkeyPrimaryModifier}+Shift+M or ${hotkeyPrimaryModifier}+${hotkeyAltModifier}+P`}
+                  </p>
                 </div>
 
                 <div className="space-y-2">

@@ -5,7 +5,7 @@
  * The MCP server runs separately via mcp-entry.ts under ELECTRON_RUN_AS_NODE=1.
  */
 
-import { app } from 'electron'
+import { app, globalShortcut } from 'electron'
 import path from 'node:path'
 import { config as loadEnv } from 'dotenv'
 import {
@@ -14,6 +14,7 @@ import {
   syncAutoStartSetting,
 } from './auto-start'
 import { createCaptureCoordinator } from './capture-orchestrator'
+import { createCaptureHotkeyManager } from './capture-hotkey-manager'
 import log from './logger'
 import { startPowerMonitoring, shouldPause } from './power-monitor'
 import { CaptureStateManager } from './settings/capture-state-manager'
@@ -55,6 +56,10 @@ let slackIntegrationService: SlackIntegrationService | null = null
 
 app.on('before-quit', () => {
   void Promise.all([runtime?.dispose(), slackIntegrationService?.stop()])
+})
+
+app.on('will-quit', () => {
+  globalShortcut.unregisterAll()
 })
 
 app.on('second-instance', () => {
@@ -130,6 +135,31 @@ app.on('ready', async () => {
     patternDetector,
   })
 
+  const hotkeyManager = createCaptureHotkeyManager({
+    platform: process.platform,
+    onTriggered: (accelerator) => {
+      if (captureCoordinator.controls.isCapturingNow()) {
+        captureCoordinator.controls.requestStopCapture()
+        log.info(`[Main] Capture stopped by hotkey (${accelerator})`)
+      } else {
+        captureCoordinator.controls.requestStartCapture()
+        log.info(`[Main] Capture started by hotkey (${accelerator})`)
+      }
+      void updateTrayMenu()
+      void sendStatusToRenderer()
+    },
+  })
+
+  const reconfigureCaptureHotkey = (accelerator: string): { success: boolean; error?: string } => {
+    const result = hotkeyManager.reconfigure(accelerator)
+    if (!result.success) return result
+
+    log.info(`[Main] Registered capture hotkey: ${hotkeyManager.getAccelerator()}`)
+    void updateTrayMenu()
+    void sendStatusToRenderer()
+    return result
+  }
+
   setupTray({
     capture: captureCoordinator.controls,
     storage: runtime.storage,
@@ -151,6 +181,8 @@ app.on('ready', async () => {
     captureSettingsManager,
     slackSettingsManager,
     slackIntegrationService,
+    getCaptureHotkeyLabel: hotkeyManager.getLabel,
+    reconfigureCaptureHotkey,
   })
 
   await slackIntegrationService.reload()
@@ -169,6 +201,13 @@ app.on('ready', async () => {
   app.on('activate', () => {
     openMainWindow()
   })
+
+  const hotkeyResult = reconfigureCaptureHotkey(
+    captureSettingsManager.get().captureHotkeyAccelerator,
+  )
+  if (!hotkeyResult.success) {
+    log.warn(hotkeyResult.error)
+  }
 
   startPowerMonitoring({
     onPause: () => {

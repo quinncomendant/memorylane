@@ -16,6 +16,7 @@ import {
 import { createCaptureCoordinator } from './capture-orchestrator'
 import { createCaptureHotkeyManager } from './capture-hotkey-manager'
 import log from './logger'
+import './logger-electron'
 import { startPowerMonitoring, shouldPause } from './power-monitor'
 import { CaptureStateManager } from './settings/capture-state-manager'
 import { CaptureSettingsManager } from './settings/capture-settings-manager'

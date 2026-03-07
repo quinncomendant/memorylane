@@ -75,7 +75,7 @@ describe('app-watcher-win backend', () => {
 
     child.stdout.write('{"type":"ready","timestamp":1}\n')
     child.stdout.write(
-      '{"type":"app_change","timestamp":2,"app":"chrome","pid":101,"title":"Google","url":"https://example.com"}\n',
+      '{"type":"app_change","timestamp":2,"app":"chrome","hwnd":"0x3A0F2","pid":101,"title":"Google","url":"https://example.com"}\n',
     )
     await flushReadline()
 
@@ -84,6 +84,7 @@ describe('app-watcher-win backend', () => {
       type: 'app_change',
       timestamp: 2,
       app: 'chrome',
+      hwnd: '0x3A0F2',
       pid: 101,
       title: 'Google',
       url: 'https://example.com',

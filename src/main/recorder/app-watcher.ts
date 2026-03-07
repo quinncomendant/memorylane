@@ -6,6 +6,7 @@ export interface AppWatcherEvent {
   type: 'app_change' | 'window_change' | 'ready' | 'error'
   timestamp: number
   app?: string
+  hwnd?: string
   bundleId?: string
   pid?: number
   title?: string

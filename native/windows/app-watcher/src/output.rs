@@ -56,6 +56,10 @@ pub fn emit_window_event(event_type: &str, hwnd: HWND) {
     );
     payload.insert("app".to_string(), serde_json::Value::String(snapshot.app));
     payload.insert(
+        "hwnd".to_string(),
+        serde_json::Value::String(format!("0x{:X}", snapshot.hwnd)),
+    );
+    payload.insert(
         "pid".to_string(),
         serde_json::Value::Number(serde_json::Number::from(snapshot.pid)),
     );

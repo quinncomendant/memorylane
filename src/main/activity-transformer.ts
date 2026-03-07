@@ -49,7 +49,13 @@ export class DefaultActivityTransformer implements ActivityTransformer {
     })
 
     const textToEmbed = summary || ocrText
-    const vector = await this.embedder.embed(textToEmbed)
+    let vector: number[]
+    try {
+      vector = await this.embedder.embed(textToEmbed)
+    } catch (error) {
+      log.error(`[ActivityTransformer] Embedding failed for activity ${activity.id}:`, error)
+      throw error
+    }
 
     return {
       activityId: activity.id,

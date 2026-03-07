@@ -31,8 +31,18 @@ export class EmbeddingService implements ActivityEmbeddingService {
       log.info(`Using remote embedding model from ${env.cacheDir}`)
     }
     log.info(`Loading embedding model: ${MODEL_NAME}`)
-    this.pipe = await pipeline('feature-extraction', MODEL_NAME, { dtype: 'fp32' })
-    log.info('Embedding model loaded.')
+    try {
+      this.pipe = await pipeline('feature-extraction', MODEL_NAME, { dtype: 'fp32' })
+      log.info('Embedding model loaded.')
+    } catch (error) {
+      const modelRoot = bundledPath ?? env.cacheDir ?? '(unknown cache dir)'
+      log.error(
+        `[EmbeddingService] Failed to load model ${MODEL_NAME} from ${modelRoot}. ` +
+          'Embedding generation will fail until the model cache is fixed.',
+        error,
+      )
+      throw error
+    }
   }
 
   /**

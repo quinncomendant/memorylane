@@ -153,6 +153,10 @@ export class ActivityExtractor {
     } catch (err) {
       const nextAttempt = task.attempt + 1
       if (nextAttempt <= this.config.maxRetries) {
+        log.warn(
+          `[ActivityExtractor] Activity ${task.record.payload.id} failed on attempt ${nextAttempt}/${this.config.maxRetries + 1}; retrying`,
+          err,
+        )
         this.counters.retried++
         const delay = this.config.retryBackoffMs * nextAttempt
         if (delay > 0) {

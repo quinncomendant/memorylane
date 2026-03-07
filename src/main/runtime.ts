@@ -86,11 +86,22 @@ export async function createMainRuntime(params?: {
       `userData=${userDataPath} db=${dbPath} screenshots=${outputDir} activityCount=${activityCount}`,
   )
 
+  const embedder = new EmbeddingService()
+  try {
+    await embedder.init()
+  } catch (error) {
+    log.error(
+      '[Runtime] Failed to initialize embedding model; aborting runtime startup so activity persistence does not silently fail.',
+      error,
+    )
+    throw error
+  }
+
   const transformer = new DefaultActivityTransformer(
     new FfmpegVideoStitcher(),
     activityOcrService,
     semanticService,
-    new EmbeddingService(),
+    embedder,
     {
       outputDir,
       getPipelinePreference: () => semanticService.getPipelinePreference(),

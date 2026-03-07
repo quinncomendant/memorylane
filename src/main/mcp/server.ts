@@ -12,7 +12,6 @@ import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js'
 import { Writable } from 'node:stream'
 import * as fs from 'fs'
 import { StorageService } from '../storage'
-import { EmbeddingService } from '../processor/embedding'
 import { getDefaultDbPath } from '../paths'
 import log from '../logger'
 import { registerTools, type MCPServices } from './tools'
@@ -115,6 +114,7 @@ export class MemoryLaneMCPServer {
 
       const storage = new StorageService(resolvedPath)
 
+      const { EmbeddingService } = await import('../processor/embedding')
       const embeddingService = new EmbeddingService()
       await embeddingService.init()
 

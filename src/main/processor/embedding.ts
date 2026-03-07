@@ -10,10 +10,8 @@ const bundledPath = getBundledModelPath()
 if (bundledPath) {
   env.localModelPath = bundledPath
   env.allowRemoteModels = false
-  log.info(`Using bundled embedding model from ${bundledPath}`)
 } else {
   env.cacheDir = getModelCacheDir()
-  log.info(`Using remote embedding model from ${env.cacheDir}`)
 }
 
 export class EmbeddingService implements ActivityEmbeddingService {
@@ -27,6 +25,11 @@ export class EmbeddingService implements ActivityEmbeddingService {
   public async init(): Promise<void> {
     if (this.pipe) return
 
+    if (bundledPath) {
+      log.info(`Using bundled embedding model from ${bundledPath}`)
+    } else {
+      log.info(`Using remote embedding model from ${env.cacheDir}`)
+    }
     log.info(`Loading embedding model: ${MODEL_NAME}`)
     this.pipe = await pipeline('feature-extraction', MODEL_NAME, { dtype: 'fp32' })
     log.info('Embedding model loaded.')

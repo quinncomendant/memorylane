@@ -15,7 +15,6 @@
 // The MCP stdio protocol owns stdout exclusively — this prevents ANY module
 // (dotenv, native addons, etc.) from polluting the transport channel.
 import { Writable } from 'node:stream'
-import * as os from 'os'
 
 const realWrite = process.stdout.write.bind(process.stdout)
 const mcpStdout = new Writable({
@@ -25,27 +24,24 @@ const mcpStdout = new Writable({
 })
 process.stdout.write = process.stderr.write.bind(process.stderr) as typeof process.stdout.write
 
-import { config as loadEnv } from 'dotenv'
-import * as path from 'path'
-import { isPackagedElectronExecutable, buildAppDataPath } from './paths'
-
-const isPackaged = isPackagedElectronExecutable(process.execPath)
-
-try {
-  if (!isPackaged) {
-    loadEnv()
-  }
-} catch {
-  // cwd might not be available in packaged app context
-}
-
-import { MemoryLaneMCPServer } from './mcp/server'
-
 async function main(): Promise<void> {
+  const [{ config: loadEnv }, path, os, { isPackagedElectronExecutable, buildAppDataPath }] =
+    await Promise.all([import('dotenv'), import('path'), import('os'), import('./paths')])
+
+  const isPackaged = isPackagedElectronExecutable(process.execPath)
+  try {
+    if (!isPackaged) {
+      loadEnv()
+    }
+  } catch {
+    // cwd might not be available in packaged app context
+  }
+
   const dev = !isPackaged
   const appDataDir = buildAppDataPath(process.platform, os.homedir(), process.env.APPDATA, dev)
   const dbFile = dev ? 'memorylane-dev.db' : 'memorylane.db'
   const dbPath = path.join(appDataDir, dbFile)
+  const { MemoryLaneMCPServer } = await import('./mcp/server')
   const server = new MemoryLaneMCPServer()
   await server.start(dbPath, mcpStdout)
 }

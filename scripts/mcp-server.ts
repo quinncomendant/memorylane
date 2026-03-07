@@ -25,10 +25,11 @@ const mcpStdout = new Writable({
 })
 process.stdout.write = process.stderr.write.bind(process.stderr) as typeof process.stdout.write
 
-import { MemoryLaneMCPServer } from '../src/main/mcp/server'
-import { getDefaultDbPath } from '../src/main/paths'
-
 async function main() {
+  const [{ MemoryLaneMCPServer }, { getDefaultDbPath }] = await Promise.all([
+    import('../src/main/mcp/server'),
+    import('../src/main/paths'),
+  ])
   const server = new MemoryLaneMCPServer()
   await server.start(getDefaultDbPath(), mcpStdout)
 }

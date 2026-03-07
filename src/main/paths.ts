@@ -63,13 +63,26 @@ export function getModelCacheDir(): string {
 
 export function getBundledModelPath(): string | null {
   if (!process.versions.electron) return null
+
+  let isPackaged: boolean | null = null
   try {
     // eslint-disable-next-line @typescript-eslint/no-require-imports
-    const { app } = require('electron')
-    if (!app?.isPackaged) return null
+    const electron = require('electron')
+    if (typeof electron === 'object' && electron !== null && 'app' in electron) {
+      const app = (electron as { app?: { isPackaged?: boolean } }).app
+      if (typeof app?.isPackaged === 'boolean') {
+        isPackaged = app.isPackaged
+      }
+    }
   } catch {
-    return null
+    // Running under ELECTRON_RUN_AS_NODE can make require('electron') unavailable
   }
+
+  if (isPackaged === null) {
+    isPackaged = isPackagedElectronExecutable(process.execPath)
+  }
+  if (!isPackaged) return null
+
   const bundled = path.join(process.resourcesPath, 'models')
   return fs.existsSync(bundled) ? bundled : null
 }

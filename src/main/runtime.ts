@@ -43,6 +43,7 @@ export interface MainRuntime {
 
 export async function createMainRuntime(params?: {
   onCaptureStateChanged?: () => void
+  onPrivacyBlockingChanged?: (blocked: boolean) => void
   semanticPipelinePreference?: SemanticPipelinePreference
   semanticRequestTimeoutMs?: number
   excludedApps?: string[]
@@ -138,6 +139,7 @@ export async function createMainRuntime(params?: {
     initialExcludedWindowTitlePatterns: params?.excludedWindowTitlePatterns,
     initialExcludedUrlPatterns: params?.excludedUrlPatterns,
     initialExcludePrivateBrowsing: params?.excludePrivateBrowsing,
+    onPrivacyBlockingChanged: params?.onPrivacyBlockingChanged,
     forwardInteraction: (event) => {
       harness.handleEvent(event)
     },

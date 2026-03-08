@@ -49,6 +49,23 @@ describe('capture blacklist coordinator', () => {
     expect(forwarded).toHaveLength(0)
   })
 
+  it('emits privacy blocking transitions when entering and leaving blocked state', () => {
+    const privacyTransitions: boolean[] = []
+
+    const coordinator = createCaptureBlacklistCoordinator({
+      initialExcludedApps: ['signal'],
+      onPrivacyBlockingChanged: (blocked) => privacyTransitions.push(blocked),
+      forwardInteraction: () => undefined,
+      flushEvents: () => undefined,
+      setScreenshotsSuppressed: () => undefined,
+    })
+
+    coordinator.handleInteraction(appChangeEvent('Signal'))
+    coordinator.handleInteraction(appChangeEvent('Terminal'))
+
+    expect(privacyTransitions).toEqual([true, false])
+  })
+
   it('resumes screenshots and forwards events when allowed app becomes active', () => {
     const forwarded: InteractionContext[] = []
     const suppressionTransitions: boolean[] = []

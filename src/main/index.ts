@@ -108,7 +108,7 @@ app.on('ready', async () => {
     captureStateManager.setAutoStartInitialized(true)
   }
 
-  const { setupTray, updateTrayMenu } = await import('./ui/tray')
+  const { setupTray, updateTrayMenu, setPrivacyBlockedState } = await import('./ui/tray')
   const { initMainWindowIPC, openMainWindow, sendStatusToRenderer } =
     await import('./ui/main-window')
 
@@ -117,6 +117,7 @@ app.on('ready', async () => {
       void updateTrayMenu()
       void sendStatusToRenderer()
     },
+    onPrivacyBlockingChanged: setPrivacyBlockedState,
     semanticPipelinePreference: initialCaptureSettings.semanticPipelineMode,
     semanticRequestTimeoutMs: initialCaptureSettings.semanticRequestTimeoutMs,
     excludedApps: initialCaptureSettings.excludedApps,

@@ -24,6 +24,7 @@ export function createCaptureBlacklistCoordinator(params: {
   initialExcludedWindowTitlePatterns?: string[]
   initialExcludedUrlPatterns?: string[]
   initialExcludePrivateBrowsing?: boolean
+  onPrivacyBlockingChanged?: (blocked: boolean) => void
   forwardInteraction: (event: InteractionContext) => void
   flushEvents: () => void
   setScreenshotsSuppressed: (suppressed: boolean) => void
@@ -94,6 +95,10 @@ export function createCaptureBlacklistCoordinator(params: {
     blockedByExcludedWindowTitle = nextBlockedByExcludedWindowTitle
     blockedByExcludedUrl = nextBlockedByExcludedUrl
     blockedByAnonymousBrowser = nextBlockedByAnonymousBrowser
+
+    if (wasBlocked !== blocked) {
+      params.onPrivacyBlockingChanged?.(blocked)
+    }
 
     if (wasBlocked === blocked) return
     params.setScreenshotsSuppressed(blocked)

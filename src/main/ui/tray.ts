@@ -23,6 +23,32 @@ interface TrayDependencies {
 
 let tray: Tray | null = null
 let deps: TrayDependencies | null = null
+let privacyBlocked = false
+const PRIVACY_BLOCKED_LATCH_MS = 20_000
+let lastPrivacyBlockedAtMs: number | null = null
+
+const isPrivacyBlockedRecently = (
+  isCapturing: boolean,
+  isPrivacyBlockedCurrently: boolean,
+): boolean => {
+  if (!isCapturing || isPrivacyBlockedCurrently || lastPrivacyBlockedAtMs === null) return false
+
+  const elapsedMs = Date.now() - lastPrivacyBlockedAtMs
+  if (elapsedMs > PRIVACY_BLOCKED_LATCH_MS) {
+    lastPrivacyBlockedAtMs = null
+    return false
+  }
+
+  return true
+}
+
+export const setPrivacyBlockedState = (blocked: boolean): void => {
+  privacyBlocked = blocked
+  if (blocked) {
+    lastPrivacyBlockedAtMs = Date.now()
+  }
+  void updateTrayMenu()
+}
 
 app.on('before-quit', () => {
   if (tray) {
@@ -85,6 +111,15 @@ export const updateTrayMenu = async (): Promise<void> => {
   if (!tray || !deps) return
 
   const isCapturing = deps.capture.isCapturingNow()
+  const isPrivacyBlocked = isCapturing && privacyBlocked
+  const blockedRecently = isPrivacyBlockedRecently(isCapturing, isPrivacyBlocked)
+  tray.setToolTip(
+    isPrivacyBlocked
+      ? 'MemoryLane - Capture Paused (Privacy Rule)'
+      : blockedRecently
+        ? 'MemoryLane - Capture Recently Paused (Privacy Rule)'
+        : 'MemoryLane - Screen Capture',
+  )
 
   const usageStatsSubmenu = await buildUsageStatsSubmenu()
 
@@ -97,6 +132,23 @@ export const updateTrayMenu = async (): Promise<void> => {
         ]
       : updateState === 'downloading'
         ? [{ label: 'Downloading Update...', enabled: false }, { type: 'separator' as const }]
+        : []),
+    ...(isPrivacyBlocked
+      ? [
+          {
+            label: 'Capture paused: privacy rule matched',
+            enabled: false,
+          },
+          { type: 'separator' as const },
+        ]
+      : blockedRecently
+        ? [
+            {
+              label: 'Capture recently paused: privacy rule matched',
+              enabled: false,
+            },
+            { type: 'separator' as const },
+          ]
         : []),
     {
       label: isCapturing ? 'Stop Capture' : 'Start Capture',
@@ -134,7 +186,6 @@ export const updateTrayMenu = async (): Promise<void> => {
 
   tray.setContextMenu(contextMenu)
 }
-
 /**
  * Setup the system tray with icon, tooltip, and menu
  */
@@ -157,7 +208,6 @@ export const setupTray = (dependencies: TrayDependencies): void => {
   }
 
   tray = new Tray(icon)
-  tray.setToolTip('MemoryLane - Screen Capture')
 
   void updateTrayMenu()
 }

@@ -9,6 +9,7 @@ import { formatBytes, formatNumber } from '../utils/formatters'
 import type { StorageService } from '../storage'
 import { sendStatusToRenderer, openMainWindow } from './main-window'
 import { getUpdateState, quitAndInstall } from '../updater'
+import { createTrayPrivacyState } from './tray-privacy-state'
 
 interface TrayDependencies {
   capture: {
@@ -23,34 +24,20 @@ interface TrayDependencies {
 
 let tray: Tray | null = null
 let deps: TrayDependencies | null = null
-let privacyBlocked = false
-const PRIVACY_BLOCKED_LATCH_MS = 20_000
-let lastPrivacyBlockedAtMs: number | null = null
-
-const isPrivacyBlockedRecently = (
-  isCapturing: boolean,
-  isPrivacyBlockedCurrently: boolean,
-): boolean => {
-  if (!isCapturing || isPrivacyBlockedCurrently || lastPrivacyBlockedAtMs === null) return false
-
-  const elapsedMs = Date.now() - lastPrivacyBlockedAtMs
-  if (elapsedMs > PRIVACY_BLOCKED_LATCH_MS) {
-    lastPrivacyBlockedAtMs = null
-    return false
-  }
-
-  return true
-}
+const trayPrivacyState = createTrayPrivacyState({
+  onRecentlyBlockedExpired: () => {
+    void updateTrayMenu()
+  },
+})
 
 export const setPrivacyBlockedState = (blocked: boolean): void => {
-  privacyBlocked = blocked
-  if (blocked) {
-    lastPrivacyBlockedAtMs = Date.now()
-  }
+  trayPrivacyState.setBlocked(blocked)
   void updateTrayMenu()
 }
 
 app.on('before-quit', () => {
+  trayPrivacyState.dispose()
+
   if (tray) {
     tray.destroy()
     tray = null
@@ -111,8 +98,7 @@ export const updateTrayMenu = async (): Promise<void> => {
   if (!tray || !deps) return
 
   const isCapturing = deps.capture.isCapturingNow()
-  const isPrivacyBlocked = isCapturing && privacyBlocked
-  const blockedRecently = isPrivacyBlockedRecently(isCapturing, isPrivacyBlocked)
+  const { isPrivacyBlocked, blockedRecently } = trayPrivacyState.getStatus(isCapturing)
   tray.setToolTip(
     isPrivacyBlocked
       ? 'MemoryLane - Capture Paused (Privacy Rule)'

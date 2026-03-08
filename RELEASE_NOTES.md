@@ -1,17 +1,16 @@
-# MemoryLane v0.14.1
+# MemoryLane v0.14.2
 
-Patch release focused on clearer tray feedback when capture is paused by privacy rules.
+Patch release focused on tray privacy-state reliability and repository maintenance.
 
 ## What's Changed
 
-- **Tray privacy-block status** - Added explicit tray tooltip/menu states when capture is paused by privacy rules
-- **Recent-state latch** - Tray now shows a short "recently paused" status after unblocking, making transitions easier to notice
-- **Release workflow maintenance** - Normalized repo-local release skill layout under `.agents/skills/release/SKILL.md`
+- **Tray privacy-state reliability** - Extracted tray privacy latch logic into a dedicated state module so the "recently paused" state now clears reliably after expiry
+- **Tray coverage improvements** - Added focused tests for tray privacy state transitions and latch expiration behavior
+- **Repository cleanup and docs** - Added a CONTRIBUTING guide, linked it from project docs, and removed obsolete notebook tooling
 
 ## Features
 
-- Tray menu now displays `Capture paused: privacy rule matched` while blocked
-- Tray tooltip now reflects active and recently-cleared privacy pauses during capture
+- Tray privacy status now transitions cleanly from paused to recently paused and back to normal without waiting for extra UI events
 
 ## Known Issues & Limitations
 
@@ -25,4 +24,4 @@ Patch release focused on clearer tray feedback when capture is paused by privacy
 
 ## Full Changelog
 
-https://github.com/deusXmachina-dev/memorylane/compare/v0.14.0...v0.14.1
+https://github.com/deusXmachina-dev/memorylane/compare/v0.14.1...v0.14.2

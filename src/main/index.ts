@@ -41,6 +41,15 @@ try {
   // cwd might not be available in packaged app context — expected, we don't need .env there
 }
 
+// In dev, point all Electron services at MemoryLane-dev before app ready.
+// If set after ready, Chromium network cache can initialize with an invalid path sandbox state.
+if (!app.isPackaged) {
+  const devUserDataPath = path.join(app.getPath('appData'), getAppDirectoryName(true))
+  if (app.getPath('userData') !== devUserDataPath) {
+    app.setPath('userData', devUserDataPath)
+  }
+}
+
 // Hide dock icon on macOS for pure tray experience
 if (process.platform === 'darwin') {
   app.dock?.hide()
@@ -70,13 +79,6 @@ app.on('second-instance', () => {
 })
 
 app.on('ready', async () => {
-  if (!app.isPackaged) {
-    const devUserDataPath = path.join(app.getPath('appData'), getAppDirectoryName(true))
-    if (app.getPath('userData') !== devUserDataPath) {
-      app.setPath('userData', devUserDataPath)
-    }
-  }
-
   const startHidden = shouldStartHiddenOnLaunch()
 
   try {

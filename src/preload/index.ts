@@ -51,6 +51,8 @@ contextBridge.exposeInMainWorld('mainWindowAPI', {
   resetCaptureSettings: () => ipcRenderer.invoke('main-window:resetCaptureSettings'),
   // Stats
   getStats: () => ipcRenderer.invoke('main-window:getStats'),
+  chooseDatabaseExportDirectory: (initialPath?: string) =>
+    ipcRenderer.invoke('main-window:chooseDatabaseExportDirectory', initialPath),
   // Database export
   exportDatabaseZip: () => ipcRenderer.invoke('main-window:exportDatabaseZip'),
 })

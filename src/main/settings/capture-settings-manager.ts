@@ -13,6 +13,10 @@ import {
   normalizeCaptureHotkeyAccelerator,
 } from '../hotkey-capture'
 
+function normalizeDatabaseExportDirectory(value: string | null | undefined): string {
+  return typeof value === 'string' && /\S/.test(value) ? value : ''
+}
+
 const DEFAULTS: CaptureSettings = {
   autoStartEnabled: true,
   visualThreshold: VISUAL_DETECTOR_CONFIG.DHASH_THRESHOLD_PERCENT,
@@ -25,6 +29,7 @@ const DEFAULTS: CaptureSettings = {
   semanticRequestTimeoutMs: ACTIVITY_CONFIG.SEMANTIC_REQUEST_TIMEOUT_MS,
   semanticPipelineMode: 'auto',
   captureHotkeyAccelerator: DEFAULT_CAPTURE_HOTKEY_ACCELERATOR,
+  databaseExportDirectory: '',
   excludePrivateBrowsing: true,
   excludedApps: [],
   excludedWindowTitlePatterns: [],
@@ -67,6 +72,7 @@ export class CaptureSettingsManager {
           captureHotkeyAccelerator: normalizeCaptureHotkeyAccelerator(
             data.captureHotkeyAccelerator ?? data.pauseHotkeyAccelerator,
           ),
+          databaseExportDirectory: normalizeDatabaseExportDirectory(data.databaseExportDirectory),
         }
       }
     } catch (error) {
@@ -85,6 +91,9 @@ export class CaptureSettingsManager {
       ...partial,
       captureHotkeyAccelerator: normalizeCaptureHotkeyAccelerator(
         partial.captureHotkeyAccelerator ?? this.settings.captureHotkeyAccelerator,
+      ),
+      databaseExportDirectory: normalizeDatabaseExportDirectory(
+        partial.databaseExportDirectory ?? this.settings.databaseExportDirectory,
       ),
       excludedApps: normalizeExcludedApps(partial.excludedApps ?? this.settings.excludedApps),
       excludedWindowTitlePatterns: normalizeWildcardPatterns(

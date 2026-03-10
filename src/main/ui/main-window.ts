@@ -5,7 +5,7 @@
  * Singleton window that hides on close instead of destroying.
  */
 
-import { app, BrowserWindow, ipcMain, IpcMainInvokeEvent } from 'electron'
+import { app, BrowserWindow, dialog, ipcMain, IpcMainInvokeEvent } from 'electron'
 import path from 'node:path'
 import { syncAutoStartSetting } from '../auto-start'
 import log from '../logger'
@@ -67,6 +67,9 @@ interface MainWindowDependencies {
     urlPatterns: string[]
     excludePrivateBrowsing: boolean
   }) => void
+  databaseExportSync: {
+    onSettingsChanged: () => Promise<void>
+  }
 }
 
 let mainWindow: BrowserWindow | null = null
@@ -378,6 +381,31 @@ export function initMainWindowIPC(dependencies: MainWindowDependencies): void {
   // Stats
   ipcMain.handle('main-window:getStats', () => buildStats())
 
+  ipcMain.handle(
+    'main-window:chooseDatabaseExportDirectory',
+    async (_event: IpcMainInvokeEvent, initialPath?: string) => {
+      try {
+        const result = await dialog.showOpenDialog(getMainWindow() ?? undefined, {
+          properties: ['openDirectory', 'createDirectory'],
+          defaultPath:
+            typeof initialPath === 'string' && /\S/.test(initialPath) ? initialPath : undefined,
+        })
+
+        if (result.canceled) {
+          return { cancelled: true }
+        }
+
+        return {
+          cancelled: false,
+          directoryPath: result.filePaths[0],
+        }
+      } catch (error) {
+        const message = error instanceof Error ? error.message : 'Failed to choose folder'
+        return { cancelled: false, error: message }
+      }
+    },
+  )
+
   // Database export
   ipcMain.handle('main-window:exportDatabaseZip', async () => {
     if (!deps) {
@@ -429,6 +457,7 @@ export function initMainWindowIPC(dependencies: MainWindowDependencies): void {
         deps.semanticService.updateRequestTimeoutMs(updated.semanticRequestTimeoutMs)
         void updateTrayMenu()
         sendStatusToRenderer()
+        void deps.databaseExportSync.onSettingsChanged()
         return { success: true }
       } catch (error) {
         if (
@@ -474,6 +503,7 @@ export function initMainWindowIPC(dependencies: MainWindowDependencies): void {
       deps.semanticService.updateRequestTimeoutMs(updated.semanticRequestTimeoutMs)
       void updateTrayMenu()
       sendStatusToRenderer()
+      void deps.databaseExportSync.onSettingsChanged()
       return { success: true }
     } catch (error) {
       deps.reconfigureCaptureHotkey(previous.captureHotkeyAccelerator)

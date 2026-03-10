@@ -3,6 +3,7 @@ import * as crypto from 'crypto'
 import * as fs from 'fs'
 import * as path from 'path'
 import log from '../logger'
+import { createPublicInstallationId } from './public-installation-id'
 
 export class DeviceIdentity {
   private configPath: string
@@ -34,6 +35,10 @@ export class DeviceIdentity {
 
     log.info('[DeviceIdentity] Generated new device ID')
     return deviceId
+  }
+
+  public getPublicInstallationId(): string {
+    return createPublicInstallationId(this.getDeviceId())
   }
 
   private persist(deviceId: string): void {

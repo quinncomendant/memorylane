@@ -120,6 +120,12 @@ export interface DatabaseExportResult {
   error?: string | undefined
 }
 
+export interface DirectorySelectionResult {
+  cancelled: boolean
+  directoryPath?: string | undefined
+  error?: string | undefined
+}
+
 export interface SettingsAPI {
   getKeyStatus: () => Promise<KeyStatus>
   saveApiKey: (key: string) => Promise<SaveResult>
@@ -155,6 +161,7 @@ export interface CaptureSettings {
   semanticRequestTimeoutMs: number
   semanticPipelineMode: SemanticPipelineMode
   captureHotkeyAccelerator: string
+  databaseExportDirectory: string
   excludePrivateBrowsing: boolean
   excludedApps: string[]
   excludedWindowTitlePatterns: string[]
@@ -195,6 +202,7 @@ export interface MainWindowAPI {
   resetCaptureSettings: () => Promise<SaveResult>
   // Stats
   getStats: () => Promise<MainWindowStats>
+  chooseDatabaseExportDirectory: (initialPath?: string) => Promise<DirectorySelectionResult>
   // Database export
   exportDatabaseZip: () => Promise<DatabaseExportResult>
   // Updater

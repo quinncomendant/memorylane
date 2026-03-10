@@ -47,6 +47,7 @@ describe('CaptureSettingsManager', () => {
       expect(defaults.semanticRequestTimeoutMs).toBe(ACTIVITY_CONFIG.SEMANTIC_REQUEST_TIMEOUT_MS)
       expect(defaults.semanticPipelineMode).toBe('auto')
       expect(defaults.captureHotkeyAccelerator).toBe(DEFAULT_CAPTURE_HOTKEY_ACCELERATOR)
+      expect(defaults.databaseExportDirectory).toBe('')
       expect(defaults.excludePrivateBrowsing).toBe(true)
       expect(defaults.excludedApps).toEqual([])
       expect(defaults.excludedWindowTitlePatterns).toEqual([])
@@ -70,6 +71,14 @@ describe('CaptureSettingsManager', () => {
       const raw = JSON.parse(fs.readFileSync(configPath, 'utf-8'))
       expect(raw.autoStartEnabled).toBe(true)
       expect(raw.typingDebounceMs).toBe(5000)
+    })
+
+    it('persists database export directory to disk', () => {
+      const manager = new CaptureSettingsManager(configPath)
+      manager.save({ databaseExportDirectory: '/tmp/memorylane-export' })
+
+      const reloaded = new CaptureSettingsManager(configPath)
+      expect(reloaded.get().databaseExportDirectory).toBe('/tmp/memorylane-export')
     })
 
     it('merges partial saves with existing settings', () => {
@@ -126,6 +135,12 @@ describe('CaptureSettingsManager', () => {
 
       const reloaded = new CaptureSettingsManager(configPath)
       expect(reloaded.get().excludePrivateBrowsing).toBe(false)
+    })
+
+    it('normalizes blank database export directories to disabled', () => {
+      fs.writeFileSync(configPath, JSON.stringify({ databaseExportDirectory: '   ' }))
+      const manager = new CaptureSettingsManager(configPath)
+      expect(manager.get().databaseExportDirectory).toBe('')
     })
 
     it('unknown keys in saved file are ignored (partial merge uses defaults)', () => {

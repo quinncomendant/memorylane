@@ -20,10 +20,12 @@ import './logger-electron'
 import { startPowerMonitoring, shouldPause } from './power-monitor'
 import { CaptureStateManager } from './settings/capture-state-manager'
 import { CaptureSettingsManager } from './settings/capture-settings-manager'
+import { DeviceIdentity } from './settings/device-identity'
 import { SlackIntegrationService } from './integrations/slack/service'
 import { SlackSettingsManager } from './integrations/slack/settings-manager'
 import { SlackSemanticLayer } from './integrations/slack/semantic'
 import { PatternDetector } from './services/pattern-detector'
+import { RawDatabaseExportSync } from './services/raw-database-export-sync'
 import { createMainRuntime, type MainRuntime } from './runtime'
 import { getAppDirectoryName } from './paths'
 
@@ -63,9 +65,14 @@ app.on('window-all-closed', () => {
 let runtime: MainRuntime | null = null
 let patternDetector: PatternDetector | null = null
 let slackIntegrationService: SlackIntegrationService | null = null
+let rawDatabaseExportSync: RawDatabaseExportSync | null = null
 
 app.on('before-quit', () => {
-  void Promise.all([runtime?.dispose(), slackIntegrationService?.stop()])
+  void Promise.all([
+    runtime?.dispose(),
+    slackIntegrationService?.stop(),
+    rawDatabaseExportSync?.stop(),
+  ])
 })
 
 app.on('will-quit', () => {
@@ -102,6 +109,7 @@ app.on('ready', async () => {
   const captureSettingsManager = new CaptureSettingsManager()
   const captureStateManager = new CaptureStateManager()
   const slackSettingsManager = new SlackSettingsManager()
+  const deviceIdentity = new DeviceIdentity()
   captureSettingsManager.applyToConstants()
   const initialCaptureSettings = captureSettingsManager.get()
 
@@ -126,7 +134,15 @@ app.on('ready', async () => {
     excludedWindowTitlePatterns: initialCaptureSettings.excludedWindowTitlePatterns,
     excludedUrlPatterns: initialCaptureSettings.excludedUrlPatterns,
     excludePrivateBrowsing: initialCaptureSettings.excludePrivateBrowsing,
+    deviceIdentity,
   })
+
+  rawDatabaseExportSync = new RawDatabaseExportSync({
+    storage: runtime.storage,
+    getExportDirectory: () => captureSettingsManager.get().databaseExportDirectory,
+    getInstallationId: () => deviceIdentity.getPublicInstallationId(),
+  })
+  rawDatabaseExportSync.start()
 
   slackIntegrationService = new SlackIntegrationService(
     slackSettingsManager,
@@ -193,6 +209,7 @@ app.on('ready', async () => {
     getCaptureHotkeyLabel: hotkeyManager.getLabel,
     reconfigureCaptureHotkey,
     updateExclusions: (exclusions) => runtime?.updateExclusions(exclusions),
+    databaseExportSync: rawDatabaseExportSync,
   })
 
   await slackIntegrationService.reload()

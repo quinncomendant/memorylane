@@ -140,6 +140,17 @@ export function AdvancedSettingsPage({ onBack }: { onBack: () => void }): React.
     setForm((prev) => (prev ? { ...prev, captureHotkeyAccelerator: value } : prev))
   }, [])
 
+  const commitDatabaseExportDirectory = useCallback(
+    (databaseExportDirectory: string): void => {
+      setForm((prev) => (prev ? { ...prev, databaseExportDirectory } : prev))
+      save(
+        { databaseExportDirectory },
+        databaseExportDirectory ? 'Raw DB export folder saved' : 'Raw DB export disabled',
+      )
+    },
+    [save],
+  )
+
   const refreshKeyStatus = useCallback(async (): Promise<void> => {
     const status = await api.getKeyStatus()
     setKeyStatus(status)
@@ -234,10 +245,16 @@ export function AdvancedSettingsPage({ onBack }: { onBack: () => void }): React.
         </>
       )}
 
-      <DataManagementSection api={api} open={dataOpen} onToggle={() => setDataOpen((v) => !v)} />
-
       {form && (
         <>
+          <DataManagementSection
+            api={api}
+            open={dataOpen}
+            onToggle={() => setDataOpen((v) => !v)}
+            databaseExportDirectory={form.databaseExportDirectory}
+            onDatabaseExportDirectoryChange={commitDatabaseExportDirectory}
+          />
+
           <div className="border-t border-border" />
 
           <SlackSettingsSection

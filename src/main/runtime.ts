@@ -50,6 +50,7 @@ export async function createMainRuntime(params?: {
   excludedWindowTitlePatterns?: string[]
   excludedUrlPatterns?: string[]
   excludePrivateBrowsing?: boolean
+  deviceIdentity?: DeviceIdentity
 }): Promise<MainRuntime> {
   const onCaptureStateChanged = params?.onCaptureStateChanged ?? (() => undefined)
 
@@ -156,7 +157,7 @@ export async function createMainRuntime(params?: {
   }
   interactionMonitor.onInteraction(interactionHandler)
 
-  const deviceIdentity = new DeviceIdentity()
+  const deviceIdentity = params?.deviceIdentity ?? new DeviceIdentity()
   const managedKeyService = new ManagedKeyService(deviceIdentity)
 
   let disposePromise: Promise<void> | null = null

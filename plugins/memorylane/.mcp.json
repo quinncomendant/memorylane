@@ -1,9 +1,7 @@
 {
   "memorylane": {
-    "command": "/Applications/MemoryLane.app/Contents/MacOS/MemoryLane",
-    "args": ["/Applications/MemoryLane.app/Contents/Resources/app.asar/out/main/mcp-entry.js"],
-    "env": {
-      "ELECTRON_RUN_AS_NODE": "1"
-    }
+    "command": "npx",
+    "args": ["-y", "@deusxmachina-dev/memorylane-cli@latest", "--", "memorylane-mcp"],
+    "env": {}
   }
 }

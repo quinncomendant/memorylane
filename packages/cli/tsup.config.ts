@@ -2,7 +2,7 @@ import { defineConfig } from 'tsup'
 import * as path from 'path'
 
 export default defineConfig({
-  entry: ['src/index.ts'],
+  entry: ['src/index.ts', 'src/mcp.ts'],
   format: ['cjs'],
   target: 'node18',
   platform: 'node',

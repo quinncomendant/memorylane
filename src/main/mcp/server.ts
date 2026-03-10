@@ -146,6 +146,22 @@ export class MemoryLaneMCPServer {
   }
 
   /**
+   * Reinitializes services with a new database path.
+   * Closes the existing storage connection and creates fresh services.
+   */
+  public async reinitializeWithDb(dbPath: string): Promise<void> {
+    if (this.services) {
+      try {
+        this.services.storage.close()
+      } catch {
+        // ignore close errors
+      }
+    }
+    this.services = null
+    await this.initializeServices(dbPath)
+  }
+
+  /**
    * Get the underlying McpServer instance for testing or advanced usage.
    */
   public getServer(): McpServer {

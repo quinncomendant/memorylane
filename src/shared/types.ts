@@ -109,7 +109,7 @@ export interface SlackIntegrationStatus {
   lastError: string | null
 }
 
-export type SubscriptionPlan = 'standard' | 'pro'
+export type SubscriptionPlan = 'power_user'
 
 export type SubscriptionStatus = 'idle' | 'awaiting_checkout' | 'polling' | 'error'
 

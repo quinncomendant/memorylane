@@ -54,7 +54,7 @@ export class ManagedKeyService {
   /**
    * Open checkout in the system browser and start polling for the provisioned key.
    */
-  public async startCheckout(plan: SubscriptionPlan = 'standard'): Promise<void> {
+  public async startCheckout(plan: SubscriptionPlan = 'power_user'): Promise<void> {
     if (this.status === 'polling' || this.status === 'awaiting_checkout') {
       log.warn('[ManagedKeyService] Checkout already in progress')
       return

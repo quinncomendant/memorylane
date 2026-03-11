@@ -50,7 +50,7 @@ describe('RawDatabaseExportSync', () => {
     expect(backupToFile).not.toHaveBeenCalled()
   })
 
-  it('exports on startup and on the hourly interval', async () => {
+  it('exports on startup and on the configured interval', async () => {
     vi.useFakeTimers()
     tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'ml-raw-export-'))
     const backupToFile = vi.fn(async (destinationPath: string) => {

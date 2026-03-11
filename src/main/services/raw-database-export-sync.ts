@@ -2,7 +2,7 @@ import * as fs from 'fs'
 import * as path from 'path'
 import log from '../logger'
 
-const DEFAULT_EXPORT_INTERVAL_MS = 60 * 60 * 1000
+const DEFAULT_EXPORT_INTERVAL_MS = 24 * 60 * 60 * 1000
 
 export interface RawDatabaseExportStorage {
   backupToFile(destinationPath: string): Promise<void>

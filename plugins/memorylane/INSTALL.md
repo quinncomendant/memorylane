@@ -10,9 +10,10 @@ Install from the GitHub Marketplace:
 deusxmachina-dev/memorylane
 ```
 
-## 2. Set up the MCP server (optional)
+<details>
+<summary><h2>2. Set up the MCP server (skip if you have the MemoryLane desktop app installed)</h2></summary>
 
-If you have the **MemoryLane desktop app** installed, just add the MCP server through the app -- no extra setup needed.
+If you have the **MemoryLane desktop app** with desktop integration enabled, skip this section — the app handles MCP setup for you.
 
 If you don't have the desktop app, follow the steps below.
 
@@ -52,3 +53,5 @@ To use a custom database path, set `MEMORYLANE_DB_PATH` in the config:
 ```
 
 Or use the `set_db_path` tool after connecting.
+
+</details>

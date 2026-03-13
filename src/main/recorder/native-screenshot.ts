@@ -150,12 +150,12 @@ export class ScreenshotDaemon implements ScreenCaptureBackend {
 
     proc.on('error', (err) => {
       log.error('[ScreenshotDaemon] Process error:', err)
-      this.handleProcessExit()
+      this.handleProcessExit(proc)
     })
 
     proc.on('close', (code) => {
       log.warn(`[ScreenshotDaemon] Process exited with code ${code}`)
-      this.handleProcessExit()
+      this.handleProcessExit(proc)
     })
   }
 
@@ -179,7 +179,11 @@ export class ScreenshotDaemon implements ScreenCaptureBackend {
     this.config?.onFrame(parsed)
   }
 
-  private handleProcessExit(): void {
+  private handleProcessExit(proc: ChildProcess): void {
+    if (proc !== this.process) {
+      return
+    }
+
     this.rl?.close()
     this.rl = null
     this.process = null

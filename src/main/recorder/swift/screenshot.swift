@@ -196,8 +196,11 @@ class AutonomousCapture: NSObject, SCStreamOutput {
     private var currentDisplayId: CGDirectDisplayID? = nil
     private var config: DaemonConfig
     private let ciContext = CIContext()
+    private let captureQueue = DispatchQueue(label: "com.memorylane.screenshot.capture")
     private let writeQueue = DispatchQueue(label: "com.memorylane.screenshot.write")
-    private var frameCounter: UInt64 = 0
+    private let pendingWriteSemaphore = DispatchSemaphore(value: 1)
+    private let stateQueue = DispatchQueue(label: "com.memorylane.screenshot.state")
+    private var droppedFrameCount = 0
 
     init(config: DaemonConfig) {
         self.config = config
@@ -221,6 +224,7 @@ class AutonomousCapture: NSObject, SCStreamOutput {
             value: CMTimeValue(config.intervalMs),
             timescale: 1000
         )
+        streamConfig.queueDepth = 2
         streamConfig.showsCursor = false
         streamConfig.pixelFormat = kCVPixelFormatType_32BGRA
 
@@ -228,7 +232,7 @@ class AutonomousCapture: NSObject, SCStreamOutput {
         try newStream.addStreamOutput(
             self,
             type: .screen,
-            sampleHandlerQueue: DispatchQueue(label: "com.memorylane.screenshot.capture")
+            sampleHandlerQueue: captureQueue
         )
         try await newStream.startCapture()
 
@@ -279,9 +283,35 @@ class AutonomousCapture: NSObject, SCStreamOutput {
         }
     }
 
+    private func noteDroppedFrame() {
+        stateQueue.sync {
+            droppedFrameCount += 1
+        }
+    }
+
+    private func takeDroppedFrameCount() -> Int {
+        stateQueue.sync {
+            let count = droppedFrameCount
+            droppedFrameCount = 0
+            return count
+        }
+    }
+
     // SCStreamOutput callback — called on each frame from ScreenCaptureKit
     func stream(_ stream: SCStream, didOutputSampleBuffer sampleBuffer: CMSampleBuffer, of type: SCStreamOutputType) {
         guard type == .screen else { return }
+        guard pendingWriteSemaphore.wait(timeout: .now()) == .success else {
+            noteDroppedFrame()
+            return
+        }
+
+        var shouldReleaseSemaphore = true
+        defer {
+            if shouldReleaseSemaphore {
+                pendingWriteSemaphore.signal()
+            }
+        }
+
         guard let imageBuffer = CMSampleBufferGetImageBuffer(sampleBuffer) else { return }
 
         let ciImage = CIImage(cvImageBuffer: imageBuffer)
@@ -297,14 +327,24 @@ class AutonomousCapture: NSObject, SCStreamOutput {
         let quality = self.config.quality
         let outputDir = self.config.outputDir
         let captureTimestamp = Int(Date().timeIntervalSince1970 * 1000)
+        let droppedFrames = takeDroppedFrameCount()
+        shouldReleaseSemaphore = false
 
         writeQueue.async {
+            defer {
+                self.pendingWriteSemaphore.signal()
+            }
+
             let filename = "frame-\(captureTimestamp).jpg"
             let filepath = (outputDir as NSString).appendingPathComponent(filename)
 
             do {
                 let resized = try resizeIfNeeded(cgImage, maxDimension: maxDimension)
                 try writeImage(resized, to: filepath, format: format, quality: quality)
+
+                if droppedFrames > 0 {
+                    fputs("[daemon] Dropped \(droppedFrames) frame(s) while previous capture was still being written\n", stderr)
+                }
 
                 let payload: [String: Any] = [
                     "filepath": filepath,

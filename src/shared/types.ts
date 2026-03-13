@@ -198,6 +198,7 @@ export interface PatternInfo {
   rejectedAt: number | null
   promptCopiedAt: number | null
   approvedAt: number | null
+  completedAt: number | null
   sightingCount: number
   lastSeenAt: number | null
   lastConfidence: number | null
@@ -238,6 +239,7 @@ export interface MainWindowAPI {
   getPatterns: () => Promise<PatternInfo[]>
   approvePattern: (id: string) => Promise<SaveResult>
   rejectPattern: (id: string) => Promise<SaveResult>
+  completePattern: (id: string) => Promise<SaveResult>
   markPatternPromptCopied: (id: string) => Promise<SaveResult>
   // Stats
   getStats: () => Promise<MainWindowStats>

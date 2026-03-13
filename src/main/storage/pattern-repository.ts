@@ -14,6 +14,7 @@ export interface Pattern {
   rejectedAt: number | null
   promptCopiedAt: number | null
   approvedAt: number | null
+  completedAt: number | null
 }
 
 export interface PatternSighting {
@@ -93,7 +94,7 @@ export class PatternRepository {
          LEFT JOIN pattern_sightings s ON s.pattern_id = p.id
          WHERE p.rejected_at IS NULL
          GROUP BY p.id
-         ORDER BY sighting_count DESC`,
+         ORDER BY (p.completed_at IS NULL) DESC, sighting_count DESC`,
       )
       .all() as Record<string, unknown>[]
 
@@ -154,6 +155,10 @@ export class PatternRepository {
 
   rejectPattern(id: string): void {
     this.db.prepare(`UPDATE patterns SET rejected_at = ? WHERE id = ?`).run(Date.now(), id)
+  }
+
+  completePattern(id: string): void {
+    this.db.prepare(`UPDATE patterns SET completed_at = ? WHERE id = ?`).run(Date.now(), id)
   }
 
   updatePattern(
@@ -275,6 +280,7 @@ export class PatternRepository {
       rejectedAt: (row.rejected_at as number) ?? null,
       promptCopiedAt: (row.prompt_copied_at as number) ?? null,
       approvedAt: (row.approved_at as number) ?? null,
+      completedAt: (row.completed_at as number) ?? null,
       sightingCount: (row.sighting_count as number) || 0,
       lastSeenAt: (row.last_seen_at as number) ?? null,
       lastConfidence: (row.last_confidence as number) ?? null,

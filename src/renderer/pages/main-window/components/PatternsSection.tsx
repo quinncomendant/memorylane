@@ -3,7 +3,7 @@ import { toast } from 'sonner'
 import { Badge } from '@components/ui/badge'
 import { Button } from '@components/ui/button'
 import { Card, CardAction, CardContent, CardHeader, CardTitle } from '@components/ui/card'
-import { ThumbsUp, ThumbsDown } from 'lucide-react'
+import { Check } from 'lucide-react'
 import type { MainWindowAPI, PatternInfo } from '@types'
 
 const SIGHTING_FILTERS = [
@@ -100,7 +100,6 @@ function ReviewStack({ patterns, onApprove, onDismiss }: ReviewStackProps): Reac
                     <kbd className="inline-flex h-5 min-w-5 items-center justify-center rounded border border-white/20 bg-white/10 px-1 text-[10px] font-medium mr-1.5">
                       A
                     </kbd>
-                    <ThumbsUp className="w-3.5 h-3.5 mr-1.5" />
                     Approve
                   </Button>
                   <Button
@@ -110,7 +109,6 @@ function ReviewStack({ patterns, onApprove, onDismiss }: ReviewStackProps): Reac
                     onClick={() => onDismiss(top.id, top.name)}
                   >
                     Not useful
-                    <ThumbsDown className="w-3.5 h-3.5 ml-1.5 scale-x-[-1]" />
                     <kbd className="inline-flex h-5 min-w-5 items-center justify-center rounded border border-current/20 bg-current/10 px-1 text-[10px] font-medium ml-1.5">
                       D
                     </kbd>
@@ -133,17 +131,11 @@ function ReviewStack({ patterns, onApprove, onDismiss }: ReviewStackProps): Reac
 
 interface PatternCardProps {
   pattern: PatternInfo
-  onApprove: (id: string) => void
-  onDismiss: (id: string) => void
+  onSolved: (id: string) => void
   onCopyPrompt: (pattern: PatternInfo) => void
 }
 
-function PatternCard({
-  pattern,
-  onApprove,
-  onDismiss,
-  onCopyPrompt,
-}: PatternCardProps): React.JSX.Element {
+function PatternCard({ pattern, onSolved, onCopyPrompt }: PatternCardProps): React.JSX.Element {
   return (
     <Card>
       <CardHeader>
@@ -157,28 +149,26 @@ function PatternCard({
           </div>
         </CardTitle>
         <CardAction>
-          <div className="flex items-center gap-0.5">
-            <Button
-              variant="ghost"
-              size="icon-xs"
-              onClick={() => onApprove(pattern.id)}
-              className={pattern.approvedAt ? 'text-green-500' : ''}
-            >
-              <ThumbsUp className="w-3.5 h-3.5" />
+          {pattern.completedAt ? (
+            <Button variant="outline" size="xs" disabled>
+              <Check className="w-3 h-3" /> Done
             </Button>
-            <Button variant="ghost" size="icon-xs" onClick={() => onDismiss(pattern.id)}>
-              <ThumbsDown className="w-3.5 h-3.5 scale-x-[-1]" />
+          ) : (
+            <Button variant="ghost" size="xs" onClick={() => onSolved(pattern.id)}>
+              <Check className="w-3 h-3" /> Complete
             </Button>
-          </div>
+          )}
         </CardAction>
       </CardHeader>
       <CardContent className="space-y-3">
         <p className="text-xs text-muted-foreground">
           {pattern.automationIdea || pattern.description}
         </p>
-        <Button size="sm" className="w-full" onClick={() => onCopyPrompt(pattern)}>
-          Copy prompt for Claude
-        </Button>
+        {!pattern.completedAt && (
+          <Button size="sm" className="w-full" onClick={() => onCopyPrompt(pattern)}>
+            Copy prompt for Claude
+          </Button>
+        )}
       </CardContent>
     </Card>
   )
@@ -216,7 +206,14 @@ export function PatternsSection({ api }: PatternsSectionProps): React.JSX.Elemen
 
   const reviewedPatterns = useMemo(
     () =>
-      allPatterns?.filter((p) => p.approvedAt !== null && p.sightingCount >= minSightings) ?? [],
+      (
+        allPatterns?.filter((p) => p.approvedAt !== null && p.sightingCount >= minSightings) ?? []
+      ).sort((a, b) => {
+        const aCompleted = a.completedAt !== null ? 1 : 0
+        const bCompleted = b.completedAt !== null ? 1 : 0
+        if (aCompleted !== bCompleted) return aCompleted - bCompleted
+        return b.sightingCount - a.sightingCount
+      }),
     [allPatterns, minSightings],
   )
 
@@ -237,6 +234,18 @@ export function PatternsSection({ api }: PatternsSectionProps): React.JSX.Elemen
       setAllPatterns((prev) => (prev ? prev.filter((p) => p.id !== id) : prev))
       api.rejectPattern(id).catch(() => {
         // rejection persisted best-effort
+      })
+    },
+    [api],
+  )
+
+  const handleComplete = useCallback(
+    (id: string) => {
+      setAllPatterns((prev) =>
+        prev ? prev.map((p) => (p.id === id ? { ...p, completedAt: Date.now() } : p)) : prev,
+      )
+      api.completePattern(id).catch(() => {
+        // completion persisted best-effort
       })
     },
     [api],
@@ -328,8 +337,7 @@ export function PatternsSection({ api }: PatternsSectionProps): React.JSX.Elemen
         <PatternCard
           key={pattern.id}
           pattern={pattern}
-          onApprove={handleApprove}
-          onDismiss={handleDismiss}
+          onSolved={handleComplete}
           onCopyPrompt={handleCopyPrompt}
         />
       ))}

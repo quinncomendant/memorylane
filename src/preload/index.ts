@@ -56,6 +56,7 @@ contextBridge.exposeInMainWorld('mainWindowAPI', {
   getPatterns: () => ipcRenderer.invoke('main-window:getPatterns'),
   approvePattern: (id: string) => ipcRenderer.invoke('main-window:approvePattern', id),
   rejectPattern: (id: string) => ipcRenderer.invoke('main-window:rejectPattern', id),
+  completePattern: (id: string) => ipcRenderer.invoke('main-window:completePattern', id),
   markPatternPromptCopied: (id: string) =>
     ipcRenderer.invoke('main-window:markPatternPromptCopied', id),
   // Stats

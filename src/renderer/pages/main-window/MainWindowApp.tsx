@@ -105,7 +105,7 @@ export function MainWindowApp(): React.JSX.Element {
 
   if (page === 'settings') {
     return (
-      <div className="min-h-screen antialiased select-none">
+      <div className="h-screen overflow-hidden antialiased select-none">
         <AdvancedSettingsPage
           onBack={() => {
             setPage('home')

@@ -37,6 +37,7 @@ const DEFAULTS: CaptureSettings = {
   semanticVideoModel: '',
   semanticSnapshotModel: '',
   patternDetectionModel: '',
+  patternDetectionEnabled: true,
 }
 
 export class CaptureSettingsManager {

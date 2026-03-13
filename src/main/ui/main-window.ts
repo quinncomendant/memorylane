@@ -44,6 +44,7 @@ interface SemanticService {
 
 interface PatternDetectorService {
   updateModel(model: string): void
+  setEnabled(enabled: boolean): void
 }
 
 interface MainWindowDependencies {
@@ -614,5 +615,8 @@ function applyModelSettings(
   }
   if (updated.patternDetectionModel !== previous.patternDetectionModel) {
     d.patternDetector?.updateModel(updated.patternDetectionModel)
+  }
+  if (updated.patternDetectionEnabled !== previous.patternDetectionEnabled) {
+    d.patternDetector?.setEnabled(updated.patternDetectionEnabled)
   }
 }

@@ -91,6 +91,17 @@ export function AdvancedSettingsPage({ onBack }: { onBack: () => void }): React.
     [save],
   )
 
+  const setPatternDetectionEnabled = useCallback(
+    (enabled: boolean): void => {
+      setForm((prev) => (prev ? { ...prev, patternDetectionEnabled: enabled } : prev))
+      save(
+        { patternDetectionEnabled: enabled },
+        enabled ? 'Task mining enabled' : 'Task mining disabled',
+      )
+    },
+    [save],
+  )
+
   const commitModelChange = useCallback(
     (
       key: 'semanticVideoModel' | 'semanticSnapshotModel' | 'patternDetectionModel',
@@ -256,6 +267,7 @@ export function AdvancedSettingsPage({ onBack }: { onBack: () => void }): React.
             onSettingChange={setNumericSetting}
             onSettingCommit={commitNumericSetting}
             onModelChange={commitModelChange}
+            onPatternDetectionEnabledChange={setPatternDetectionEnabled}
           />
 
           <div className="border-t border-border" />

@@ -216,11 +216,17 @@ export class PatternDetector {
   private running = false
   private settleTimer: ReturnType<typeof setTimeout> | null = null
   private model: string = DEFAULT_DETECTOR_CONFIG.model
+  private enabled = true
 
   constructor(
     private readonly storage: StorageService,
     private readonly apiKeyManager?: ApiKeyManager,
   ) {}
+
+  setEnabled(enabled: boolean): void {
+    this.enabled = enabled
+    log.info(`[PatternDetector] ${enabled ? 'Enabled' : 'Disabled'}`)
+  }
 
   updateModel(model: string): void {
     this.model = model && model.trim().length > 0 ? model.trim() : DEFAULT_DETECTOR_CONFIG.model
@@ -237,6 +243,7 @@ export class PatternDetector {
    * Failures are logged but never propagated.
    */
   scheduleRun(): void {
+    if (!this.enabled) return
     if (this.running || this.settleTimer) return
 
     const apiKey = this.apiKeyManager?.getApiKey()

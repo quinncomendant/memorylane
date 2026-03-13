@@ -52,6 +52,7 @@ interface AiModelsSectionProps {
     key: 'semanticVideoModel' | 'semanticSnapshotModel' | 'patternDetectionModel',
     value: string,
   ) => void
+  onPatternDetectionEnabledChange: (enabled: boolean) => void
 }
 
 export function AiModelsSection({
@@ -67,6 +68,7 @@ export function AiModelsSection({
   onSettingChange,
   onSettingCommit,
   onModelChange,
+  onPatternDetectionEnabledChange,
 }: AiModelsSectionProps): React.JSX.Element {
   const isCustomEndpoint = endpointStatus?.enabled === true
   const hasLlmAccess = keyStatus?.hasKey === true || isCustomEndpoint
@@ -124,6 +126,28 @@ export function AiModelsSection({
 
           {hasLlmAccess && (
             <div className="pl-2">
+              <div className="space-y-2 mb-4">
+                <p className="text-xs font-medium text-muted-foreground">Task Mining</p>
+                <div className="grid grid-cols-2 gap-2">
+                  <Button
+                    variant={form.patternDetectionEnabled ? 'default' : 'outline'}
+                    size="sm"
+                    onClick={() => onPatternDetectionEnabledChange(true)}
+                  >
+                    On
+                  </Button>
+                  <Button
+                    variant={!form.patternDetectionEnabled ? 'default' : 'outline'}
+                    size="sm"
+                    onClick={() => onPatternDetectionEnabledChange(false)}
+                  >
+                    Off
+                  </Button>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Analyzes your daily activity to find automatable workflows.
+                </p>
+              </div>
               <SubSectionToggle
                 label="More"
                 open={moreOpen}

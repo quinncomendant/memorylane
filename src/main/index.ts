@@ -156,6 +156,7 @@ app.on('ready', async () => {
 
   userContextBuilder = new UserContextBuilder(runtime.storage, runtime.apiKeyManager)
   patternDetector = new PatternDetector(runtime.storage, runtime.apiKeyManager)
+  patternDetector.setEnabled(captureSettingsManager.get().patternDetectionEnabled)
   const captureCoordinator = createCaptureCoordinator({
     capture: runtime.capture,
     captureStateManager,

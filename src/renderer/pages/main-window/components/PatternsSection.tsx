@@ -20,12 +20,17 @@ interface PatternsSectionProps {
 export function PatternsSection({ api }: PatternsSectionProps): React.JSX.Element | null {
   const [allPatterns, setAllPatterns] = useState<PatternInfo[] | null>(null)
   const [minSightings, setMinSightings] = useState(3)
+  const [detectionEnabled, setDetectionEnabled] = useState<boolean | null>(null)
 
   useEffect(() => {
     api
       .getPatterns()
       .then(setAllPatterns)
       .catch(() => setAllPatterns([]))
+    api
+      .getCaptureSettings()
+      .then((s) => setDetectionEnabled(s.patternDetectionEnabled))
+      .catch(() => setDetectionEnabled(true))
   }, [api])
 
   const patterns = useMemo(
@@ -82,7 +87,34 @@ export function PatternsSection({ api }: PatternsSectionProps): React.JSX.Elemen
     [api],
   )
 
-  if (allPatterns === null || allPatterns.length === 0) return null
+  if (allPatterns === null) return null
+
+  if (detectionEnabled === false) {
+    return (
+      <div className="space-y-3">
+        <h2 className="text-sm font-medium">Automation Opportunities</h2>
+        <p className="text-xs text-muted-foreground">
+          MemoryLane can analyze your daily activity to find repetitive workflows you could
+          automate.
+        </p>
+        <Button
+          size="sm"
+          onClick={() => {
+            setDetectionEnabled(true)
+            api.saveCaptureSettings({ patternDetectionEnabled: true }).then((result) => {
+              if (result.success) {
+                toast.success('Task mining enabled')
+              }
+            })
+          }}
+        >
+          Start discovering
+        </Button>
+      </div>
+    )
+  }
+
+  if (allPatterns.length === 0) return null
 
   return (
     <div className="space-y-3">

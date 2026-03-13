@@ -179,6 +179,7 @@ export interface CaptureSettings {
   semanticVideoModel: string
   semanticSnapshotModel: string
   patternDetectionModel: string
+  patternDetectionEnabled: boolean
 }
 
 export type McpRegistrationStatus = Record<string, boolean>

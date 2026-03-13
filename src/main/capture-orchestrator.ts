@@ -26,6 +26,11 @@ export function createCaptureCoordinator(params: {
   controls: CaptureCoordinatorControls
   resumeCaptureIfDesired(reason: 'startup' | 'resume'): void
 } {
+  const scheduleBackgroundAnalyzers = (): void => {
+    params.userContextBuilder?.scheduleRun()
+    params.patternDetector?.scheduleRun()
+  }
+
   const persistCaptureEnabled = (enabled: boolean): boolean => {
     try {
       params.captureStateManager.setCaptureEnabled(enabled)
@@ -43,6 +48,7 @@ export function createCaptureCoordinator(params: {
       return
     }
     params.capture.startCapture()
+    scheduleBackgroundAnalyzers()
   }
 
   const requestStopCapture = (): void => {
@@ -62,8 +68,7 @@ export function createCaptureCoordinator(params: {
     log.info(`[Main] Starting capture from persisted preference (${reason})`)
     params.capture.startCapture()
 
-    params.userContextBuilder?.scheduleRun()
-    params.patternDetector?.scheduleRun()
+    scheduleBackgroundAnalyzers()
   }
 
   return {

@@ -23,14 +23,19 @@ export function PatternsSection({ api }: PatternsSectionProps): React.JSX.Elemen
   const [detectionEnabled, setDetectionEnabled] = useState<boolean | null>(null)
 
   useEffect(() => {
-    api
-      .getPatterns()
-      .then(setAllPatterns)
-      .catch(() => setAllPatterns([]))
-    api
-      .getCaptureSettings()
-      .then((s) => setDetectionEnabled(s.patternDetectionEnabled))
-      .catch(() => setDetectionEnabled(true))
+    const load = (): void => {
+      api
+        .getPatterns()
+        .then(setAllPatterns)
+        .catch(() => setAllPatterns([]))
+      api
+        .getCaptureSettings()
+        .then((s) => setDetectionEnabled(s.patternDetectionEnabled))
+        .catch(() => setDetectionEnabled(true))
+    }
+    load()
+    window.addEventListener('focus', load)
+    return () => window.removeEventListener('focus', load)
   }, [api])
 
   const patterns = useMemo(

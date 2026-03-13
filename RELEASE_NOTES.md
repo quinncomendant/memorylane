@@ -1,14 +1,14 @@
-# MemoryLane v0.15.5
+# MemoryLane v0.15.6
 
-Patch release focused on safer updater installs.
+Patch release that rolls the published version forward.
 
 ## What's Changed
 
-- **Updater rechecks before install** - MemoryLane now verifies update state again before starting installation, reducing stale or duplicate install attempts
+- No additional product changes since `v0.15.5`
 
 ## Features
 
-- Auto-updates revalidate the pending release before installation begins
+- Same feature set as `v0.15.5`
 
 ## Known Issues & Limitations
 
@@ -22,4 +22,4 @@ Patch release focused on safer updater installs.
 
 ## Full Changelog
 
-https://github.com/deusXmachina-dev/memorylane/compare/v0.15.4...v0.15.5
+https://github.com/deusXmachina-dev/memorylane/compare/v0.15.5...v0.15.6

@@ -111,35 +111,6 @@ export function AiModelsSection({
                 onKeyDeleted={onKeyStatusChanged}
                 onKeyUpdated={onKeyStatusChanged}
               />
-              {keyStatus.hasKey && (
-                <div className="space-y-3">
-                  <p className="text-xs font-medium text-muted-foreground">Model Selection</p>
-                  <ModelSelector
-                    mode={selectorMode}
-                    presets={VIDEO_PRESETS}
-                    value={form.semanticVideoModel}
-                    defaultValue={DEFAULT_VIDEO_MODEL}
-                    onChange={(v) => onModelChange('semanticVideoModel', v)}
-                    label="Video analysis model"
-                  />
-                  <ModelSelector
-                    mode={selectorMode}
-                    presets={SNAPSHOT_PRESETS}
-                    value={form.semanticSnapshotModel}
-                    defaultValue={DEFAULT_SNAPSHOT_MODEL}
-                    onChange={(v) => onModelChange('semanticSnapshotModel', v)}
-                    label="Snapshot analysis model"
-                  />
-                  <ModelSelector
-                    mode={selectorMode}
-                    presets={PATTERN_PRESETS}
-                    value={form.patternDetectionModel}
-                    defaultValue={DEFAULT_PATTERN_MODEL}
-                    onChange={(v) => onModelChange('patternDetectionModel', v)}
-                    label="Task mining model"
-                  />
-                </div>
-              )}
             </>
           )}
 
@@ -205,6 +176,39 @@ export function AiModelsSection({
                       onCommit={(v) => onSettingCommit('semanticRequestTimeoutMs', v)}
                     />
                   </div>
+                  {keyStatus?.hasKey && (
+                    <div className="space-y-3">
+                      <p className="text-xs font-medium text-muted-foreground">Model Selection</p>
+                      {form.semanticPipelineMode !== 'image' && (
+                        <ModelSelector
+                          mode={selectorMode}
+                          presets={VIDEO_PRESETS}
+                          value={form.semanticVideoModel}
+                          defaultValue={DEFAULT_VIDEO_MODEL}
+                          onChange={(v) => onModelChange('semanticVideoModel', v)}
+                          label="Video analysis model"
+                        />
+                      )}
+                      {form.semanticPipelineMode !== 'video' && (
+                        <ModelSelector
+                          mode={selectorMode}
+                          presets={SNAPSHOT_PRESETS}
+                          value={form.semanticSnapshotModel}
+                          defaultValue={DEFAULT_SNAPSHOT_MODEL}
+                          onChange={(v) => onModelChange('semanticSnapshotModel', v)}
+                          label="Snapshot analysis model"
+                        />
+                      )}
+                      <ModelSelector
+                        mode={selectorMode}
+                        presets={PATTERN_PRESETS}
+                        value={form.patternDetectionModel}
+                        defaultValue={DEFAULT_PATTERN_MODEL}
+                        onChange={(v) => onModelChange('patternDetectionModel', v)}
+                        label="Task mining model"
+                      />
+                    </div>
+                  )}
                 </div>
               )}
             </div>

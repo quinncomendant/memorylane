@@ -8,6 +8,7 @@ import {
   ensureMigrationsTable,
   runMigrations,
 } from './migrator'
+import { migrations } from './migrations'
 import { migration as migration0001 } from './migrations/0001_initial_schema'
 import { migration as migration0002 } from './migrations/0002_migrate_context_events'
 import { migration as migration0003 } from './migrations/0003_fts_sync_triggers'
@@ -382,7 +383,7 @@ describe('migration system', () => {
     deleteDbFiles(SYSTEM_DB_PATH)
   })
 
-  it('should apply all 3 migrations on a fresh database', () => {
+  it('should apply all migrations on a fresh database', () => {
     deleteDbFiles(SYSTEM_DB_PATH)
 
     const storage = new StorageService(SYSTEM_DB_PATH)
@@ -395,7 +396,7 @@ describe('migration system', () => {
     }[]
     db.close()
 
-    expect(rows.length).toBe(7)
+    expect(rows.length).toBe(migrations.length)
     expect(rows[0].name).toBe('0001_initial_schema')
     expect(rows[1].name).toBe('0002_migrate_context_events')
     expect(rows[2].name).toBe('0003_fts_sync_triggers')
@@ -416,8 +417,8 @@ describe('migration system', () => {
     const rows = db.prepare('SELECT name FROM schema_migrations').all() as { name: string }[]
     db.close()
 
-    // Still exactly 3 rows — no duplicates
-    expect(rows.length).toBe(7)
+    // Still exactly one row per migration — no duplicates
+    expect(rows.length).toBe(migrations.length)
   })
 
   it('getMigrationStatus returns correct applied state after construction', () => {
@@ -431,7 +432,7 @@ describe('migration system', () => {
     const status = getMigrationStatus(db)
     db.close()
 
-    expect(status.length).toBe(7)
+    expect(status.length).toBe(migrations.length)
     for (const s of status) {
       expect(s.applied).toBe(true)
       expect(s.appliedAt).toBeGreaterThan(0)
@@ -446,7 +447,7 @@ describe('migration system', () => {
     const status = getMigrationStatus(db)
     db.close()
 
-    expect(status.length).toBe(7)
+    expect(status.length).toBe(migrations.length)
     for (const s of status) {
       expect(s.applied).toBe(false)
       expect(s.appliedAt).toBeNull()
@@ -507,7 +508,7 @@ describe('migration system', () => {
     ).count
     db.close()
 
-    expect(migrationRows.length).toBe(7)
+    expect(migrationRows.length).toBe(migrations.length)
     expect(migrationRows[1].name).toBe('0002_migrate_context_events')
     expect(migrationRows[2].name).toBe('0003_fts_sync_triggers')
     expect(activityCount).toBe(1)
@@ -560,7 +561,7 @@ describe('migration system', () => {
     }[]
     db.close()
 
-    expect(migrationRows.length).toBe(7)
+    expect(migrationRows.length).toBe(migrations.length)
   })
 })
 
@@ -694,7 +695,7 @@ describe('migration idempotency', () => {
     runMigrations(db)
 
     const rows = db.prepare('SELECT name FROM schema_migrations').all() as { name: string }[]
-    expect(rows.length).toBe(7)
+    expect(rows.length).toBe(migrations.length)
     db.close()
   })
 })

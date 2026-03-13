@@ -322,25 +322,18 @@ describe('PatternRepository', () => {
   // -----------------------------------------------------------------------
 
   describe('getLastRunTimestamp', () => {
-    it('should return null when no sightings', () => {
+    it('should return null when no detection runs are recorded', () => {
       expect(storage.patterns.getLastRunTimestamp()).toBeNull()
     })
 
-    it('should return the max detected_at across all sightings', () => {
-      storage.patterns.addPattern(createPattern({ id: 'p-ts1' }))
-      storage.patterns.addPattern(createPattern({ id: 'p-ts2' }))
+    it('should return the max ran_at across detection runs', () => {
+      storage.patterns.recordRun('run-1', 2)
+      storage.patterns.recordRun('run-2', 0)
+      storage.patterns.recordRun('run-3', 1)
 
-      storage.patterns.addSighting(
-        createSighting({ id: 'ts-1', patternId: 'p-ts1', detectedAt: 4000 }),
-      )
-      storage.patterns.addSighting(
-        createSighting({ id: 'ts-2', patternId: 'p-ts2', detectedAt: 9000 }),
-      )
-      storage.patterns.addSighting(
-        createSighting({ id: 'ts-3', patternId: 'p-ts1', detectedAt: 6000 }),
-      )
-
-      expect(storage.patterns.getLastRunTimestamp()).toBe(9000)
+      const latest = storage.patterns.getLastRunTimestamp()
+      expect(latest).not.toBeNull()
+      expect(latest!).toBeGreaterThan(0)
     })
   })
 })

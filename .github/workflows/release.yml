@@ -269,24 +269,24 @@ jobs:
             release-assets/release-windows-${{ env.RELEASE_TAG }}/MemoryLane-Setup.msi
             release-assets/release-windows-${{ env.RELEASE_TAG }}/latest.yml
 
-  # notify-discord:
-  #   name: Notify Discord
-  #   runs-on: ubuntu-24.04
-  #   needs: publish-release
-  #   if: ${{ success() }}
-  #
-  #   steps:
-  #     - name: Send Discord notification
-  #       env:
-  #         DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_RELEASE_WEBHOOK_URL }}
-  #         RELEASE_URL: ${{ github.server_url }}/${{ github.repository }}/releases/tag/${{ env.RELEASE_TAG }}
-  #       run: |
-  #         if [ -z "$DISCORD_WEBHOOK_URL" ]; then
-  #           echo "DISCORD_RELEASE_WEBHOOK_URL is not set; skipping Discord notification."
-  #           exit 0
-  #         fi
-  #
-  #         curl -fsSL \
-  #           -H "Content-Type: application/json" \
-  #           -d "{\"content\":\"🚀 MemoryLane release ${RELEASE_TAG} is live: ${RELEASE_URL}\"}" \
-  #           "$DISCORD_WEBHOOK_URL"
+  notify-discord:
+    name: Notify Discord
+    runs-on: ubuntu-24.04
+    needs: publish-release
+    if: ${{ success() }}
+
+    steps:
+      - name: Send Discord notification
+        env:
+          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_RELEASE_WEBHOOK_URL }}
+          RELEASE_URL: ${{ github.server_url }}/${{ github.repository }}/releases/tag/${{ env.RELEASE_TAG }}
+        run: |
+          if [ -z "$DISCORD_WEBHOOK_URL" ]; then
+            echo "DISCORD_RELEASE_WEBHOOK_URL is not set; skipping Discord notification."
+            exit 0
+          fi
+
+          curl -fsSL \
+            -H "Content-Type: application/json" \
+            -d "{\"content\":\"🚀 MemoryLane release ${RELEASE_TAG} is live: ${RELEASE_URL}\"}" \
+            "$DISCORD_WEBHOOK_URL"

@@ -5,6 +5,7 @@ import { Button } from '@components/ui/button'
 import { Card, CardAction, CardContent, CardHeader, CardTitle } from '@components/ui/card'
 import { Check } from 'lucide-react'
 import type { MainWindowAPI, PatternInfo } from '@types'
+import { getPatternsSectionState } from './patterns-section-state'
 
 const SIGHTING_FILTERS = [
   { label: 'All', min: 1 },
@@ -199,26 +200,17 @@ export function PatternsSection({ api }: PatternsSectionProps): React.JSX.Elemen
     return () => window.removeEventListener('focus', load)
   }, [api])
 
-  const newPatterns = useMemo(
-    () => allPatterns?.filter((p) => p.approvedAt === null) ?? [],
-    [allPatterns],
-  )
-
-  const reviewedPatterns = useMemo(
-    () =>
-      (
-        allPatterns?.filter((p) => p.approvedAt !== null && p.sightingCount >= minSightings) ?? []
-      ).sort((a, b) => {
-        const aCompleted = a.completedAt !== null ? 1 : 0
-        const bCompleted = b.completedAt !== null ? 1 : 0
-        if (aCompleted !== bCompleted) return aCompleted - bCompleted
-        return b.sightingCount - a.sightingCount
-      }),
+  const { newPatterns, approvedPatterns, reviewedPatterns } = useMemo(
+    () => getPatternsSectionState(allPatterns, minSightings),
     [allPatterns, minSightings],
   )
 
   const handleApprove = useCallback(
     (id: string) => {
+      const approvedPattern = allPatterns?.find((pattern) => pattern.id === id)
+      if (approvedPattern && approvedPattern.sightingCount < minSightings) {
+        setMinSightings(1)
+      }
       setAllPatterns((prev) =>
         prev ? prev.map((p) => (p.id === id ? { ...p, approvedAt: Date.now() } : p)) : prev,
       )
@@ -226,7 +218,7 @@ export function PatternsSection({ api }: PatternsSectionProps): React.JSX.Elemen
         // approval persisted best-effort
       })
     },
-    [api],
+    [allPatterns, api, minSightings],
   )
 
   const handleDismiss = useCallback(
@@ -309,14 +301,14 @@ export function PatternsSection({ api }: PatternsSectionProps): React.JSX.Elemen
     <div className="space-y-3">
       <div className="flex items-center justify-between">
         <h2 className="text-sm font-medium">Automation Opportunities</h2>
-        <Badge variant="secondary">{newPatterns.length + reviewedPatterns.length} found</Badge>
+        <Badge variant="secondary">{newPatterns.length + approvedPatterns.length} found</Badge>
       </div>
 
       {newPatterns.length > 0 && (
         <ReviewStack patterns={newPatterns} onApprove={handleApprove} onDismiss={handleDismiss} />
       )}
 
-      {reviewedPatterns.length > 0 && (
+      {approvedPatterns.length > 0 && (
         <div className="flex items-center gap-1">
           <span className="text-xs text-muted-foreground mr-1">Sightings:</span>
           {SIGHTING_FILTERS.map((f) => (

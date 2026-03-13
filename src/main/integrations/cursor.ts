@@ -5,7 +5,7 @@
  * as an MCP server, so users can enable the integration with one click.
  */
 
-import { app, dialog } from 'electron'
+import { app } from 'electron'
 import * as fs from 'node:fs'
 import * as path from 'node:path'
 import * as os from 'node:os'
@@ -83,13 +83,17 @@ function buildMCPEntry(): MCPServerEntry {
 
 /**
  * Register MemoryLane as an MCP server in Cursor's global MCP config.
- *
- * Shows a dialog with the result:
- * - Already registered: informational message
- * - Success: confirmation message
- * - Error: error details
+ * Returns true on success, false on failure.
  */
-export async function registerWithCursor(): Promise<void> {
+/**
+ * Check whether MemoryLane is currently registered in Cursor's MCP config on disk.
+ */
+export function isMcpAddedToCursor(): boolean {
+  const config = readCursorConfig(getCursorConfigPath())
+  return isRegistered(config)
+}
+
+export async function registerWithCursor(): Promise<boolean> {
   const configPath = getCursorConfigPath()
   log.info(`[Cursor Integration] Config path: ${configPath}`)
 
@@ -106,24 +110,9 @@ export async function registerWithCursor(): Promise<void> {
     writeCursorConfig(configPath, config)
 
     log.info(`[Cursor Integration] ${alreadyRegistered ? 'Updated' : 'Registered'} successfully`)
-    await dialog.showMessageBox({
-      type: 'info',
-      title: alreadyRegistered ? 'Updated in Cursor' : 'Added to Cursor',
-      message: `MemoryLane has been ${alreadyRegistered ? 'updated in' : 'added to'} Cursor`,
-      detail:
-        `The MCP server was ${alreadyRegistered ? 'updated' : 'registered'} successfully. ` +
-        'Please restart Cursor for the changes to take effect.',
-    })
+    return true
   } catch (error) {
     log.error('[Cursor Integration] Registration failed:', error)
-    await dialog.showMessageBox({
-      type: 'error',
-      title: 'Registration Failed',
-      message: 'Could not add MemoryLane to Cursor',
-      detail:
-        `An error occurred while updating the Cursor MCP configuration.\n\n` +
-        `Config path: ${configPath}\n` +
-        `Error: ${error instanceof Error ? error.message : String(error)}`,
-    })
+    return false
   }
 }

@@ -5,7 +5,7 @@
  * as an MCP server, so users can enable the integration with one click.
  */
 
-import { app, dialog } from 'electron'
+import { app } from 'electron'
 import * as fs from 'node:fs'
 import * as path from 'node:path'
 import * as os from 'node:os'
@@ -85,13 +85,17 @@ function buildMCPEntry(): MCPServerEntry {
 
 /**
  * Register MemoryLane as an MCP server in Claude Code's global settings.
- *
- * Shows a dialog with the result:
- * - Already registered: informational message
- * - Success: confirmation message
- * - Error: error details
+ * Returns true on success, false on failure.
  */
-export async function registerWithClaudeCode(): Promise<void> {
+/**
+ * Check whether MemoryLane is currently registered in Claude Code's settings on disk.
+ */
+export function isMcpAddedToClaudeCode(): boolean {
+  const settings = readSettings(getClaudeCodeSettingsPath())
+  return isRegistered(settings)
+}
+
+export async function registerWithClaudeCode(): Promise<boolean> {
   const settingsPath = getClaudeCodeSettingsPath()
   log.info(`[Claude Code Integration] Settings path: ${settingsPath}`)
 
@@ -110,26 +114,9 @@ export async function registerWithClaudeCode(): Promise<void> {
     log.info(
       `[Claude Code Integration] ${alreadyRegistered ? 'Updated' : 'Registered'} successfully`,
     )
-    await dialog.showMessageBox({
-      type: 'info',
-      title: alreadyRegistered ? 'Updated in Claude Code' : 'Added to Claude Code',
-      message: `MemoryLane has been ${alreadyRegistered ? 'updated in' : 'added to'} Claude Code`,
-      detail: alreadyRegistered
-        ? 'The MCP server configuration was updated. ' +
-          'Please restart Claude Code for the changes to take effect.'
-        : 'The MCP server was registered in your global settings. ' +
-          'It will be available in all Claude Code sessions.',
-    })
+    return true
   } catch (error) {
     log.error('[Claude Code Integration] Registration failed:', error)
-    await dialog.showMessageBox({
-      type: 'error',
-      title: 'Registration Failed',
-      message: 'Could not add MemoryLane to Claude Code',
-      detail:
-        `An error occurred while updating the Claude Code settings.\n\n` +
-        `Settings path: ${settingsPath}\n` +
-        `Error: ${error instanceof Error ? error.message : String(error)}`,
-    })
+    return false
   }
 }

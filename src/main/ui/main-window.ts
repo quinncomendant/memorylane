@@ -12,9 +12,7 @@ import { syncAutoStartSetting } from '../auto-start'
 import log from '../logger'
 import { updateTrayMenu } from './tray'
 import { exportDatabaseZip } from './database-export'
-import { registerWithClaudeDesktop } from '../integrations/claude-desktop'
-import { registerWithCursor } from '../integrations/cursor'
-import { registerWithClaudeCode } from '../integrations/claude-code'
+import { integrations } from '../integrations'
 import { SlackSettingsManager } from '../integrations/slack/settings-manager'
 import { SlackIntegrationService } from '../integrations/slack/service'
 import type { ApiKeyManager } from '../settings/api-key-manager'
@@ -262,9 +260,17 @@ export function initMainWindowIPC(dependencies: MainWindowDependencies): void {
   })
 
   // Integrations
-  ipcMain.handle('main-window:addToClaude', () => registerWithClaudeDesktop())
-  ipcMain.handle('main-window:addToCursor', () => registerWithCursor())
-  ipcMain.handle('main-window:addToClaudeCode', () => registerWithClaudeCode())
+  const byName = Object.fromEntries(integrations.map((i) => [i.name, i]))
+  ipcMain.handle('main-window:addToClaude', () => byName.claudeDesktop.register())
+  ipcMain.handle('main-window:addToCursor', () => byName.cursor.register())
+  ipcMain.handle('main-window:addToClaudeCode', () => byName.claudeCode.register())
+  ipcMain.handle('main-window:getMcpStatus', () => {
+    const status: Record<string, boolean> = {}
+    for (const integration of integrations) {
+      status[integration.name] = integration.isMcpAdded()
+    }
+    return status
+  })
 
   // Custom endpoint management
   ipcMain.handle('main-window:getCustomEndpoint', () => {

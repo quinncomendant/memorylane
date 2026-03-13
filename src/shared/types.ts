@@ -142,9 +142,9 @@ export interface SettingsAPI {
   deleteApiKey: () => Promise<SaveResult>
   close: () => void
   openExternal: (url: string) => Promise<void>
-  addToClaude: () => Promise<void>
-  addToCursor: () => Promise<void>
-  addToClaudeCode: () => Promise<void>
+  addToClaude: () => Promise<boolean>
+  addToCursor: () => Promise<boolean>
+  addToClaudeCode: () => Promise<boolean>
 }
 
 export interface MainWindowStatus {
@@ -181,6 +181,8 @@ export interface CaptureSettings {
   patternDetectionModel: string
 }
 
+export type McpRegistrationStatus = Record<string, boolean>
+
 export type SemanticPipelineMode = 'auto' | 'video' | 'image'
 
 export type UpdateState = 'idle' | 'downloading' | 'ready'
@@ -208,9 +210,10 @@ export interface MainWindowAPI {
   getKeyStatus: () => Promise<KeyStatus>
   saveApiKey: (key: string) => Promise<SaveResult>
   deleteApiKey: () => Promise<SaveResult>
-  addToClaude: () => Promise<void>
-  addToCursor: () => Promise<void>
-  addToClaudeCode: () => Promise<void>
+  addToClaude: () => Promise<boolean>
+  addToCursor: () => Promise<boolean>
+  addToClaudeCode: () => Promise<boolean>
+  getMcpStatus: () => Promise<McpRegistrationStatus>
   // Custom endpoint
   getCustomEndpoint: () => Promise<CustomEndpointStatus>
   saveCustomEndpoint: (config: CustomEndpointConfig) => Promise<SaveResult>

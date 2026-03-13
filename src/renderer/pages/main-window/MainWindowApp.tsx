@@ -20,6 +20,7 @@ export function MainWindowApp(): React.JSX.Element {
   const [captureHotkeyLabel, setCaptureHotkeyLabel] = useState('')
   const [toggling, setToggling] = useState(false)
   const [stats, setStats] = useState<MainWindowStats | null>(null)
+  const [initialLoaded, setInitialLoaded] = useState(false)
 
   const loadKeyStatus = useCallback(async () => {
     try {
@@ -70,8 +71,14 @@ export function MainWindowApp(): React.JSX.Element {
       setCaptureHotkeyLabel(status.captureHotkeyLabel)
       void loadStats()
     })
-    void loadAll()
+    void loadAll().then(() => setInitialLoaded(true))
   }, [api, loadAll, loadStats])
+
+  useEffect(() => {
+    api.onSubscriptionUpdate(() => {
+      void loadKeyStatus()
+    })
+  }, [api, loadKeyStatus])
 
   useEffect(() => {
     const handleFocus = (): void => {
@@ -115,7 +122,7 @@ export function MainWindowApp(): React.JSX.Element {
       <div className="p-6 max-w-xl mx-auto space-y-5">
         <Logo onSettingsClick={() => setPage('settings')} />
 
-        {!isConfigured ? (
+        {!initialLoaded ? null : !isConfigured ? (
           <PlanPicker api={api} onKeySet={() => void loadKeyStatus()} />
         ) : (
           <>

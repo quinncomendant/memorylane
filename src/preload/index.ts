@@ -21,6 +21,7 @@ contextBridge.exposeInMainWorld('mainWindowAPI', {
   addToClaude: () => ipcRenderer.invoke('main-window:addToClaude'),
   addToCursor: () => ipcRenderer.invoke('main-window:addToCursor'),
   addToClaudeCode: () => ipcRenderer.invoke('main-window:addToClaudeCode'),
+  getMcpStatus: () => ipcRenderer.invoke('main-window:getMcpStatus'),
   // Custom endpoint
   getCustomEndpoint: () => ipcRenderer.invoke('main-window:getCustomEndpoint'),
   saveCustomEndpoint: (config: { serverURL: string; model: string; apiKey?: string }) =>

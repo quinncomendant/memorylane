@@ -1,54 +1,61 @@
 import * as React from 'react'
-import { useCallback, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { toast } from 'sonner'
+import { Check, Plug } from 'lucide-react'
 import { Button } from '@components/ui/button'
+import { Label } from '@components/ui/label'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@components/ui/card'
-import type { MainWindowAPI } from '@types'
+import type { MainWindowAPI, McpRegistrationStatus } from '@types'
 
 interface IntegrationsSectionProps {
   api: MainWindowAPI
 }
 
+const PROVIDERS: {
+  name: string
+  label: string
+  register: (api: MainWindowAPI) => Promise<boolean>
+}[] = [
+  { name: 'claudeDesktop', label: 'Claude Desktop', register: (api) => api.addToClaude() },
+  { name: 'cursor', label: 'Cursor', register: (api) => api.addToCursor() },
+  { name: 'claudeCode', label: 'Claude Code', register: (api) => api.addToClaudeCode() },
+]
+
 export function IntegrationsSection({ api }: IntegrationsSectionProps): React.JSX.Element {
-  const [addingClaude, setAddingClaude] = useState(false)
-  const [addingCursor, setAddingCursor] = useState(false)
-  const [addingClaudeCode, setAddingClaudeCode] = useState(false)
+  const [status, setStatus] = useState<McpRegistrationStatus | null>(null)
+  const [adding, setAdding] = useState<string | null>(null)
 
-  const handleAddToClaude = useCallback(async () => {
-    setAddingClaude(true)
+  const loadStatus = useCallback(async () => {
     try {
-      await api.addToClaude()
-      toast.success('Added to Claude Desktop')
+      setStatus(await api.getMcpStatus())
     } catch {
-      toast.error('Failed to add to Claude Desktop')
-    } finally {
-      setAddingClaude(false)
+      // leave as-is
     }
   }, [api])
 
-  const handleAddToCursor = useCallback(async () => {
-    setAddingCursor(true)
-    try {
-      await api.addToCursor()
-      toast.success('Added to Cursor')
-    } catch {
-      toast.error('Failed to add to Cursor')
-    } finally {
-      setAddingCursor(false)
-    }
-  }, [api])
+  useEffect(() => {
+    void loadStatus()
+  }, [loadStatus])
 
-  const handleAddToClaudeCode = useCallback(async () => {
-    setAddingClaudeCode(true)
-    try {
-      await api.addToClaudeCode()
-      toast.success('Added to Claude Code')
-    } catch {
-      toast.error('Failed to add to Claude Code')
-    } finally {
-      setAddingClaudeCode(false)
-    }
-  }, [api])
+  const handleAdd = useCallback(
+    async (provider: (typeof PROVIDERS)[number]) => {
+      setAdding(provider.name)
+      try {
+        const ok = await provider.register(api)
+        await loadStatus()
+        if (ok) {
+          toast.success(`Connected to ${provider.label}`)
+        } else {
+          toast.error(`Failed to connect to ${provider.label}`)
+        }
+      } catch {
+        toast.error(`Failed to connect to ${provider.label}`)
+      } finally {
+        setAdding(null)
+      }
+    },
+    [api, loadStatus],
+  )
 
   return (
     <Card>
@@ -59,33 +66,33 @@ export function IntegrationsSection({ api }: IntegrationsSectionProps): React.JS
         </CardDescription>
       </CardHeader>
       <CardContent className="flex gap-2">
-        <Button
-          variant="outline"
-          size="sm"
-          className="flex-1"
-          disabled={addingClaude}
-          onClick={() => void handleAddToClaude()}
-        >
-          {addingClaude ? 'Adding...' : 'Add to Claude'}
-        </Button>
-        <Button
-          variant="outline"
-          size="sm"
-          className="flex-1"
-          disabled={addingCursor}
-          onClick={() => void handleAddToCursor()}
-        >
-          {addingCursor ? 'Adding...' : 'Add to Cursor'}
-        </Button>
-        <Button
-          variant="outline"
-          size="sm"
-          className="flex-1"
-          disabled={addingClaudeCode}
-          onClick={() => void handleAddToClaudeCode()}
-        >
-          {addingClaudeCode ? 'Adding...' : 'Claude Code'}
-        </Button>
+        {PROVIDERS.map((provider) => {
+          const connected = status?.[provider.name]
+          return (
+            <div key={provider.name} className="flex-1 flex flex-col items-center gap-1">
+              <Label className="text-xs text-muted-foreground">{provider.label}</Label>
+              <Button
+                variant="outline"
+                size="sm"
+                className="w-full"
+                disabled={connected || adding !== null}
+                onClick={() => void handleAdd(provider)}
+              >
+                {adding === provider.name ? (
+                  'Connecting...'
+                ) : connected ? (
+                  <>
+                    <Check className="h-3.5 w-3.5" /> Connected
+                  </>
+                ) : (
+                  <>
+                    <Plug className="h-3.5 w-3.5" /> Connect
+                  </>
+                )}
+              </Button>
+            </div>
+          )
+        })}
       </CardContent>
     </Card>
   )

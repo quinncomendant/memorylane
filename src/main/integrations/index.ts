@@ -1,0 +1,27 @@
+import type { McpIntegration } from './types'
+import { registerWithClaudeDesktop, isMcpAddedToClaudeDesktop } from './claude-desktop'
+import { registerWithCursor, isMcpAddedToCursor } from './cursor'
+import { registerWithClaudeCode, isMcpAddedToClaudeCode } from './claude-code'
+
+export type { McpIntegration } from './types'
+
+export const integrations: McpIntegration[] = [
+  {
+    name: 'claudeDesktop',
+    label: 'Claude Desktop',
+    register: registerWithClaudeDesktop,
+    isMcpAdded: isMcpAddedToClaudeDesktop,
+  },
+  {
+    name: 'cursor',
+    label: 'Cursor',
+    register: registerWithCursor,
+    isMcpAdded: isMcpAddedToCursor,
+  },
+  {
+    name: 'claudeCode',
+    label: 'Claude Code',
+    register: registerWithClaudeCode,
+    isMcpAdded: isMcpAddedToClaudeCode,
+  },
+]

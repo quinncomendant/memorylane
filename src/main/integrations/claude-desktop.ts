@@ -5,7 +5,7 @@
  * as an MCP server, so users can enable the integration with one click.
  */
 
-import { app, dialog } from 'electron'
+import { app } from 'electron'
 import * as fs from 'node:fs'
 import * as path from 'node:path'
 import * as os from 'node:os'
@@ -100,13 +100,17 @@ function buildMCPEntry(): MCPServerEntry {
 
 /**
  * Register MemoryLane as an MCP server in Claude Desktop's config.
- *
- * Shows a dialog with the result:
- * - Already registered: informational message
- * - Success: confirmation message
- * - Error: error details
+ * Returns true on success, false on failure.
  */
-export async function registerWithClaudeDesktop(): Promise<void> {
+/**
+ * Check whether MemoryLane is currently registered in Claude Desktop's config on disk.
+ */
+export function isMcpAddedToClaudeDesktop(): boolean {
+  const config = readClaudeConfig(getClaudeConfigPath())
+  return isRegistered(config)
+}
+
+export async function registerWithClaudeDesktop(): Promise<boolean> {
   const configPath = getClaudeConfigPath()
   log.info(`[Claude Integration] Config path: ${configPath}`)
 
@@ -123,24 +127,9 @@ export async function registerWithClaudeDesktop(): Promise<void> {
     writeClaudeConfig(configPath, config)
 
     log.info(`[Claude Integration] ${alreadyRegistered ? 'Updated' : 'Registered'} successfully`)
-    await dialog.showMessageBox({
-      type: 'info',
-      title: alreadyRegistered ? 'Updated in Claude Desktop' : 'Added to Claude Desktop',
-      message: `MemoryLane has been ${alreadyRegistered ? 'updated in' : 'added to'} Claude Desktop`,
-      detail:
-        `The MCP server was ${alreadyRegistered ? 'updated' : 'registered'} successfully. ` +
-        'Please restart Claude Desktop for the changes to take effect.',
-    })
+    return true
   } catch (error) {
     log.error('[Claude Integration] Registration failed:', error)
-    await dialog.showMessageBox({
-      type: 'error',
-      title: 'Registration Failed',
-      message: 'Could not add MemoryLane to Claude Desktop',
-      detail:
-        `An error occurred while updating the Claude Desktop configuration.\n\n` +
-        `Config path: ${configPath}\n` +
-        `Error: ${error instanceof Error ? error.message : String(error)}`,
-    })
+    return false
   }
 }

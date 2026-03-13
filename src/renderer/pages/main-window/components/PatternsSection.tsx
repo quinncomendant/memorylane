@@ -316,22 +316,24 @@ export function PatternsSection({ api }: PatternsSectionProps): React.JSX.Elemen
         <ReviewStack patterns={newPatterns} onApprove={handleApprove} onDismiss={handleDismiss} />
       )}
 
-      <div className="flex items-center gap-1">
-        <span className="text-xs text-muted-foreground mr-1">Sightings:</span>
-        {SIGHTING_FILTERS.map((f) => (
-          <button
-            key={f.min}
-            onClick={() => setMinSightings(f.min)}
-            className={`px-2 py-0.5 rounded-full text-xs transition-colors ${
-              minSightings === f.min
-                ? 'bg-primary text-primary-foreground'
-                : 'bg-secondary text-secondary-foreground hover:bg-secondary/80'
-            }`}
-          >
-            {f.label}
-          </button>
-        ))}
-      </div>
+      {reviewedPatterns.length > 0 && (
+        <div className="flex items-center gap-1">
+          <span className="text-xs text-muted-foreground mr-1">Sightings:</span>
+          {SIGHTING_FILTERS.map((f) => (
+            <button
+              key={f.min}
+              onClick={() => setMinSightings(f.min)}
+              className={`px-2 py-0.5 rounded-full text-xs transition-colors ${
+                minSightings === f.min
+                  ? 'bg-primary text-primary-foreground'
+                  : 'bg-secondary text-secondary-foreground hover:bg-secondary/80'
+              }`}
+            >
+              {f.label}
+            </button>
+          ))}
+        </div>
+      )}
 
       {reviewedPatterns.map((pattern) => (
         <PatternCard

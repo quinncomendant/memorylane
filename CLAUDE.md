@@ -151,6 +151,14 @@ The `enode.sh` wrapper sets `ELECTRON_RUN_AS_NODE=1` and executes the command th
   - `@types` maps to `src/shared/types`
   - Use these aliases instead of deep relative paths in renderer code
 
+## UI Guidelines
+
+- Prefer React UI components (modals, toasts, inline messages) over browser-native dialogs (`alert()`, `confirm()`, `prompt()`).
+
+## Findings
+
+The `findings/` directory contains benchmark results, prompt experiments, and other research artifacts. When working on prompts or LLM-related features, check this folder first and reuse or update existing results rather than starting from scratch.
+
 ## Key Patterns
 
 ### Screen Capture API

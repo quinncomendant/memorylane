@@ -5,12 +5,7 @@ import type { StorageService } from '../../storage'
 import type { Pattern, PatternSighting } from '../../storage/pattern-repository'
 import type { EmbeddingService } from '../../processor/embedding'
 import log from '../../logger'
-import type {
-  PatternDetectorConfig,
-  DetectionRunResult,
-  ProgressCallback,
-  Candidate,
-} from './types'
+import type { PatternDetectorConfig, DetectionRunResult, ProgressCallback } from './types'
 import { DEFAULT_DETECTOR_CONFIG } from './types'
 import {
   getDayBoundaries,
@@ -19,6 +14,7 @@ import {
   extractJsonObject,
   generatePatternId,
 } from './helpers'
+import { normalizeScanCandidates } from './candidate-normalizer'
 import { buildScanSystemPrompt, buildVerificationSystemPrompt } from './prompts'
 import { buildVerificationTools } from './tools'
 
@@ -118,18 +114,27 @@ export async function runDetection(
     `[Phase 1] Response received (${scanResponse.usage?.promptTokens || 0} in / ${scanResponse.usage?.completionTokens || 0} out tokens)`,
   )
 
-  const candidates = extractJsonArray<Candidate>(scanContent)
-  progress(`[Phase 1] Found ${candidates.length} candidates`)
+  const rawCandidates = extractJsonArray<unknown>(scanContent)
+  const { candidates, malformedCount, missingActivityIdsCount } =
+    normalizeScanCandidates(rawCandidates)
+  progress(
+    `[Phase 1] Parsed ${rawCandidates.length} candidates (${candidates.length} valid, ${malformedCount} malformed)`,
+  )
+  if (missingActivityIdsCount > 0) {
+    progress(
+      `[Phase 1] ${missingActivityIdsCount} valid candidates missing activity_ids; verification will rely more on tool search`,
+    )
+  }
 
   if (candidates.length === 0) {
-    progress('No candidates to verify, done')
+    progress('No valid candidates to verify, done')
     storage.patterns.recordRun(runId, 0)
     return {
       runId,
       newPatterns: 0,
       updatedPatterns: 0,
       totalFindings: 0,
-      candidatesFromScan: 0,
+      candidatesFromScan: rawCandidates.length,
       candidatesVerified: 0,
       candidatesRejected: 0,
       tokenUsage: {
@@ -314,7 +319,7 @@ export async function runDetection(
     newPatterns,
     updatedPatterns,
     totalFindings: candidatesVerified,
-    candidatesFromScan: candidates.length,
+    candidatesFromScan: rawCandidates.length,
     candidatesVerified,
     candidatesRejected,
     tokenUsage: {

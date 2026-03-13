@@ -1,6 +1,13 @@
 import type { PatternWithStats } from '../../storage/pattern-repository'
 import type { Candidate } from './types'
 
+function formatList(values: readonly string[] | undefined, emptyFallback: string): string {
+  if (!Array.isArray(values) || values.length === 0) {
+    return emptyFallback
+  }
+  return values.join(', ')
+}
+
 // ---------------------------------------------------------------------------
 // Phase 1: Scan prompt
 // ---------------------------------------------------------------------------
@@ -80,6 +87,9 @@ export function buildVerificationSystemPrompt(
   candidate: Candidate,
   existingPatterns: PatternWithStats[],
 ): string {
+  const appList = formatList(candidate.apps, 'Unknown')
+  const activityIdList = formatList(candidate.activity_ids, 'None provided')
+
   let patternsSection = ''
   if (existingPatterns.length > 0) {
     const patternsJson = existingPatterns.map((p) => ({
@@ -105,8 +115,8 @@ ${JSON.stringify(patternsJson, null, 2)}
 ## Candidate information retrieved from a superficial scan of user activities
 - Name: ${candidate.name}
 - Description: ${candidate.description}
-- Apps: ${candidate.apps.join(', ')}
-- Activity IDs from initial scan: ${candidate.activity_ids.join(', ')}
+- Apps: ${appList}
+- Activity IDs from initial scan: ${activityIdList}
 - Initial confidence: ${candidate.confidence}
 ${patternsSection}
 

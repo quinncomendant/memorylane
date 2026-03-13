@@ -5,6 +5,7 @@ import log from './logger'
 export type UpdateState = 'idle' | 'downloading' | 'ready'
 let state: UpdateState = 'idle'
 let reminderInterval: ReturnType<typeof setInterval> | null = null
+let installPromise: Promise<void> | null = null
 // Must be kept in module scope so the click handler isn't garbage-collected.
 let currentNotification: Notification | null = null
 const DISABLE_AUTO_UPDATE_ENV_VAR = 'MEMORYLANE_DISABLE_AUTO_UPDATE'
@@ -19,11 +20,15 @@ const isAutoUpdateDisabled = (): boolean => {
   return ['1', 'true', 'yes', 'on'].includes(normalizedValue)
 }
 
-export const quitAndInstall = (): void => {
+const clearReminderInterval = (): void => {
   if (reminderInterval) {
     clearInterval(reminderInterval)
     reminderInterval = null
   }
+}
+
+const runQuitAndInstall = (): void => {
+  clearReminderInterval()
   log.info('[Updater] Requesting quit-and-install')
   // isForceRunAfter=true is required for tray apps that have no main window,
   // otherwise the quit sequence can stall.
@@ -39,6 +44,35 @@ export const quitAndInstall = (): void => {
     log.warn('[Updater] App still running after quitAndInstall — forcing exit')
     app.exit(0)
   }, 3_000)
+}
+
+const ensureLatestUpdateDownloaded = async (): Promise<void> => {
+  // Re-check immediately before install so we don't install a stale update
+  // that was downloaded before a newer release was published.
+  const result = await autoUpdater.checkForUpdates()
+  await result?.downloadPromise
+}
+
+export const quitAndInstall = (): void => {
+  if (installPromise) {
+    log.info('[Updater] Install already in progress')
+    return
+  }
+
+  installPromise = (async () => {
+    try {
+      await ensureLatestUpdateDownloaded()
+    } catch (error) {
+      log.warn(
+        '[Updater] Pre-install update check failed; installing cached update if available.',
+        error,
+      )
+    }
+
+    runQuitAndInstall()
+  })().finally(() => {
+    installPromise = null
+  })
 }
 
 const showUpdateNotification = (version: string): void => {
@@ -84,7 +118,7 @@ export const initAutoUpdater = (onUpdateStateChange: () => void): void => {
 
     showUpdateNotification(info.version)
 
-    if (reminderInterval) clearInterval(reminderInterval)
+    clearReminderInterval()
     reminderInterval = setInterval(() => showUpdateNotification(info.version), 4 * 60 * 60 * 1000)
   })
 

@@ -5,6 +5,7 @@ import { Button } from '@components/ui/button'
 import { Card, CardAction, CardContent, CardHeader, CardTitle } from '@components/ui/card'
 import { ThumbsUp, ThumbsDown, Check, Undo2, ChevronDown, ChevronUp } from 'lucide-react'
 import type { MainWindowAPI, PatternInfo } from '@types'
+import { PatternFeedbackNudge } from './PatternFeedbackNudge'
 
 const SIGHTING_FILTERS = [
   { label: 'All', min: 1 },
@@ -175,6 +176,12 @@ export function PatternsSection({ api }: PatternsSectionProps): React.JSX.Elemen
         <h2 className="text-sm font-medium">Automation Opportunities</h2>
         <Badge variant="secondary">{activePatterns.length + completedPatterns.length} found</Badge>
       </div>
+
+      <PatternFeedbackNudge
+        patterns={allPatterns ?? []}
+        onApprove={handleApprove}
+        onDismiss={handleDismiss}
+      />
 
       <div className="flex items-center gap-1">
         <span className="text-xs text-muted-foreground mr-1">Sightings:</span>

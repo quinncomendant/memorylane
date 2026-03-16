@@ -15,7 +15,7 @@ import { StorageService } from '../storage'
 import { getDefaultDbPath } from '../paths'
 import log from '../logger'
 import { registerTools, type MCPServices } from './tools'
-import { registerPrompts } from './prompts'
+/* import { registerPrompts } from './prompts' */
 
 const SERVER_NAME = 'memorylane'
 const SERVER_VERSION = '1.0.0'
@@ -95,7 +95,7 @@ export class MemoryLaneMCPServer {
     )
 
     registerTools(this.server, () => this.services)
-    registerPrompts(this.server)
+    /* registerPrompts(this.server) */ // this is not handled by claude plugin
   }
 
   /**

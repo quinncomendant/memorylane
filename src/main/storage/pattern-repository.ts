@@ -161,6 +161,10 @@ export class PatternRepository {
     this.db.prepare(`UPDATE patterns SET completed_at = ? WHERE id = ?`).run(Date.now(), id)
   }
 
+  uncompletePattern(id: string): void {
+    this.db.prepare(`UPDATE patterns SET completed_at = NULL WHERE id = ?`).run(id)
+  }
+
   updatePattern(
     id: string,
     fields: { name?: string; description?: string; apps?: string[]; automationIdea?: string },

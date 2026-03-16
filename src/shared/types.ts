@@ -240,6 +240,7 @@ export interface MainWindowAPI {
   approvePattern: (id: string) => Promise<SaveResult>
   rejectPattern: (id: string) => Promise<SaveResult>
   completePattern: (id: string) => Promise<SaveResult>
+  uncompletePattern: (id: string) => Promise<SaveResult>
   markPatternPromptCopied: (id: string) => Promise<SaveResult>
   // Stats
   getStats: () => Promise<MainWindowStats>

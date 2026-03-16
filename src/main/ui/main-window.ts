@@ -454,6 +454,17 @@ export function initMainWindowIPC(dependencies: MainWindowDependencies): void {
     }
   })
 
+  ipcMain.handle('main-window:uncompletePattern', (_event: IpcMainInvokeEvent, id: string) => {
+    if (!deps) return { success: false, error: 'Dependencies not initialized' }
+    try {
+      deps.storage.patterns.uncompletePattern(id)
+      return { success: true }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unknown error'
+      return { success: false, error: message }
+    }
+  })
+
   ipcMain.handle(
     'main-window:markPatternPromptCopied',
     (_event: IpcMainInvokeEvent, id: string) => {

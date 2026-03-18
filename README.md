@@ -4,7 +4,7 @@
 
 ## Installation
 
-[![macOS](https://img.shields.io/badge/macOS-Apple_Silicon-black?logo=apple)](https://github.com/deusXmachina-dev/memorylane/releases/latest/download/MemoryLane-darwin-arm64.dmg)
+[![macOS](https://img.shields.io/badge/macOS-Apple_Silicon-black?logo=apple)](https://github.com/deusXmachina-dev/memorylane/releases/latest/download/MemoryLane-arm64-mac.dmg)
 
 [![Windows](https://img.shields.io/badge/Windows-x64-blue?logo=windows)](https://github.com/deusXmachina-dev/memorylane/releases/latest/download/MemoryLane-Setup.exe)
 

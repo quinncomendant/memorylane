@@ -14,6 +14,10 @@ Desktop app that sees what you see, builds context about how you work, and surfa
 
 **Screen Recording → context → task recommendations → MCP into AI chats**
 
+<p align="center">
+  <img src="assets/readme/screenshot.jpeg" width="90%" />
+</p>
+
 🎬 [Demo](https://www.youtube.com/watch?v=MU7S3FHHlr8)
 
 ## Privacy & Permissions

@@ -99,7 +99,7 @@ export function PatternFeedbackNudge({
               </span>
             </div>
             <p className="text-xs text-muted-foreground">
-              {candidate.automationIdea || candidate.description}
+              {candidate.description || candidate.automationIdea}
             </p>
           </div>
         )}

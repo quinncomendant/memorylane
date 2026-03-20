@@ -24,6 +24,10 @@ Desktop app that sees what you see, builds context about how you work, and surfa
 
 See [Privacy & Permissions](docs/privacy-and-permissions.md).
 
+## CLI
+
+Install the CLI from npm: [`@deusxmachina-dev/memorylane-cli`](https://www.npmjs.com/package/@deusxmachina-dev/memorylane-cli)
+
 ## Community
 
 Questions, feedback, and feature ideas are welcome in our Discord server.

@@ -10,7 +10,7 @@
 
 ## What is MemoryLane?
 
-Desktop app that sees what you see, builds context about how you work, and surfaces automation opportunities — all queryable from any AI chat via MCP.
+It is a desktop app that sees what you see, builds context about how you work, and surfaces automation opportunities — all queryable from any AI chat via MCP.
 
 **Screen Recording → context → task recommendations → MCP into AI chats**
 

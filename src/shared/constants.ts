@@ -86,4 +86,5 @@ export const MANAGED_KEY_CONFIG = {
       : 'https://api.trymemorylane.com/',
   POLL_INTERVAL_MS: 5_000,
   POLL_TIMEOUT_MS: 600_000, // 10 minutes
+  KEY_REFRESH_INTERVAL_MS: 24 * 60 * 60 * 1000, // 24 hours
 }

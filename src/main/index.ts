@@ -70,6 +70,7 @@ let slackIntegrationService: SlackIntegrationService | null = null
 let rawDatabaseExportSync: RawDatabaseExportSync | null = null
 
 app.on('before-quit', () => {
+  runtime?.managedKeyService.stopPeriodicRefresh()
   void Promise.all([
     runtime?.dispose(),
     slackIntegrationService?.stop(),
@@ -220,10 +221,7 @@ app.on('ready', async () => {
 
   await slackIntegrationService.reload()
 
-  const keySource = runtime.apiKeyManager.getKeySource()
-  if (keySource === 'none' || keySource === 'managed') {
-    void runtime.managedKeyService.tryFetchKey()
-  }
+  runtime.managedKeyService.startPeriodicRefresh()
 
   captureCoordinator.resumeCaptureIfDesired('startup')
 

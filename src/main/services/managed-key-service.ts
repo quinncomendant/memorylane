@@ -16,6 +16,7 @@ export class ManagedKeyService {
   private readonly deviceIdentity: DeviceIdentity
   private pollTimer: ReturnType<typeof setInterval> | null = null
   private timeoutTimer: ReturnType<typeof setTimeout> | null = null
+  private refreshTimer: ReturnType<typeof setInterval> | null = null
   private status: SubscriptionStatus = 'idle'
   private onUpdate: ManagedKeyCallback | null = null
 
@@ -87,6 +88,27 @@ export class ManagedKeyService {
     await shell.openExternal(url.toString())
 
     log.info('[ManagedKeyService] Opened subscription portal in system browser')
+  }
+
+  /**
+   * Periodically refresh the key to keep subscription state in sync.
+   */
+  public startPeriodicRefresh(): void {
+    if (this.refreshTimer !== null) return
+
+    void this.tryFetchKey()
+
+    this.refreshTimer = setInterval(() => {
+      void this.tryFetchKey()
+    }, MANAGED_KEY_CONFIG.KEY_REFRESH_INTERVAL_MS)
+    this.refreshTimer.unref?.()
+  }
+
+  public stopPeriodicRefresh(): void {
+    if (this.refreshTimer !== null) {
+      clearInterval(this.refreshTimer)
+      this.refreshTimer = null
+    }
   }
 
   public cancelPolling(): void {

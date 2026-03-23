@@ -1,17 +1,18 @@
-# MemoryLane v0.17.0
+# MemoryLane v0.17.1
 
-Minor release focused on pattern workflow UX and MCP prompt cleanup.
+Patch release focused on safer Windows updates, clearer pattern language, and docs cleanup.
 
 ## What's Changed
 
-- Added an expandable pattern feedback nudge card for quicker review and response actions
-- Improved pattern list behavior and persisted activity updates for smoother in-app feedback loops
-- Removed MCP prompt payloads from server responses to keep context output cleaner
+- Blocked Windows auto-update installs while the MCP host is running to avoid interrupted sessions
+- Updated pattern prompts and cards to prefer clearer first-person descriptions
+- Refreshed the README, privacy link, and CLI/plugin documentation
 
 ## Features
 
-- Task recommendation cards now support a compact/expanded feedback flow with thumbs up/down handling
-- MCP context responses are leaner and better suited for downstream assistants
+- Windows update handling is safer when MemoryLane is active through MCP
+- Pattern recommendations use more natural descriptions across prompts and UI cards
+- The MemoryLane plugin now includes the `process-flowchart` command and skill
 
 ## Known Issues & Limitations
 
@@ -25,4 +26,4 @@ Minor release focused on pattern workflow UX and MCP prompt cleanup.
 
 ## Full Changelog
 
-https://github.com/deusXmachina-dev/memorylane/compare/v0.16.0...v0.17.0
+https://github.com/deusXmachina-dev/memorylane/compare/v0.17.0...v0.17.1

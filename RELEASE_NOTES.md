@@ -1,18 +1,14 @@
-# MemoryLane v0.17.1
+# MemoryLane v0.17.2
 
-Patch release focused on safer Windows updates, clearer pattern language, and docs cleanup.
+Patch release: managed subscription keys refresh in the background so entitlement stays aligned with the backend.
 
 ## What's Changed
 
-- Blocked Windows auto-update installs while the MCP host is running to avoid interrupted sessions
-- Updated pattern prompts and cards to prefer clearer first-person descriptions
-- Refreshed the README, privacy link, and CLI/plugin documentation
+- Added a daily background refresh for provisioned API keys so subscription changes apply without restarting the app
 
 ## Features
 
-- Windows update handling is safer when MemoryLane is active through MCP
-- Pattern recommendations use more natural descriptions across prompts and UI cards
-- The MemoryLane plugin now includes the `process-flowchart` command and skill
+- Managed-key subscription state stays in sync via periodic re-fetch (24-hour interval)
 
 ## Known Issues & Limitations
 
@@ -26,4 +22,4 @@ Patch release focused on safer Windows updates, clearer pattern language, and do
 
 ## Full Changelog
 
-https://github.com/deusXmachina-dev/memorylane/compare/v0.17.0...v0.17.1
+https://github.com/deusXmachina-dev/memorylane/compare/v0.17.1...v0.17.2

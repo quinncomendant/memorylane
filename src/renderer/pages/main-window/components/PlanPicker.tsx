@@ -15,8 +15,8 @@ export interface PlanConfig {
 
 export const PLANS: PlanConfig[] = [
   {
-    id: 'power_user',
-    name: 'Power User',
+    id: 'explorer',
+    name: 'Explorer',
     price: '$30/mo',
     highlighted: true,
     features: ['Automation recommendations', 'No API keys needed', 'Data stored on your device'],

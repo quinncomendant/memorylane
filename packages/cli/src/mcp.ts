@@ -225,6 +225,20 @@ async function mainPublic(port: number): Promise<void> {
     })
   })
 
+  // Check ngrok is available
+  try {
+    const { execFileSync } = await import('node:child_process')
+    execFileSync('ngrok', ['version'], { stdio: 'ignore' })
+  } catch {
+    console.error(
+      'ngrok is required for --public mode but was not found.\n' +
+        'Install it from https://ngrok.com/download and run `ngrok config add-authtoken <token>` to authenticate.',
+    )
+    httpServer.close()
+    storage.close()
+    process.exit(1)
+  }
+
   // Spawn ngrok
   let ngrokProcess: ChildProcess | undefined
   try {
@@ -234,13 +248,12 @@ async function mainPublic(port: number): Promise<void> {
 
     ngrokProcess.on('error', (err) => {
       console.error(`Failed to start ngrok: ${err.message}`)
-      console.error('Make sure ngrok is installed and authenticated: https://ngrok.com/download')
       process.exit(1)
     })
 
     ngrokProcess.on('exit', (code) => {
       if (code !== null && code !== 0) {
-        console.error(`ngrok exited with code ${code}`)
+        console.error(`ngrok exited with code ${code}. Is another ngrok tunnel already running?`)
         httpServer.close()
         storage.close()
         process.exit(1)

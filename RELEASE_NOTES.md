@@ -1,13 +1,15 @@
-# MemoryLane v0.18.0
+# MemoryLane v0.19.0
 
-Minor release: enterprise edition support, MCP CLI cleanup, and plugin workflow updates.
+New stepped onboarding flow that guides users from MCP setup through first pattern detection.
 
 ## What's Changed
 
-- Added edition-aware customer and enterprise build flow with activation support
-- Moved MCP into the standalone CLI package and added public HTTP mode with ngrok/token auth
-- Converted plugin commands into skills and added a safer deploy-plugin release workflow
-- Fixed plugin marketplace validation by normalizing the plugin name
+- Added stepped onboarding: Connect (pick MCP providers) -> Capture (progress bar) -> Dashboard
+- Added `openExternal` IPC for opening links in the default browser (https-only)
+- Added estimated hours per week to pattern cards
+- Increased minimum activities before pattern detection from 50 to 200
+- Renamed "Claude Desktop" to "Claude Cowork" in integrations
+- Simplified StatusLine to show capture state with animated indicator
 
 ## Known Issues & Limitations
 
@@ -21,4 +23,4 @@ Minor release: enterprise edition support, MCP CLI cleanup, and plugin workflow 
 
 ## Full Changelog
 
-https://github.com/deusXmachina-dev/memorylane/compare/v0.17.4...v0.18.0
+https://github.com/deusXmachina-dev/memorylane/compare/v0.18.0...v0.19.0

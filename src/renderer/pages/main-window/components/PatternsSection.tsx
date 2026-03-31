@@ -16,31 +16,27 @@ const SIGHTING_FILTERS = [
 
 interface PatternsSectionProps {
   api: MainWindowAPI
+  patterns: PatternInfo[]
+  onPatternsChange: () => void
 }
 
-export function PatternsSection({ api }: PatternsSectionProps): React.JSX.Element | null {
-  const [allPatterns, setAllPatterns] = useState<PatternInfo[] | null>(null)
-  const [minSightings, setMinSightings] = useState(3)
+export function PatternsSection({
+  api,
+  patterns,
+  onPatternsChange,
+}: PatternsSectionProps): React.JSX.Element | null {
+  const [minSightings, setMinSightings] = useState(1)
   const [detectionEnabled, setDetectionEnabled] = useState<boolean | null>(null)
 
   useEffect(() => {
-    const load = (): void => {
-      api
-        .getPatterns()
-        .then(setAllPatterns)
-        .catch(() => setAllPatterns([]))
-      api
-        .getCaptureSettings()
-        .then((s) => setDetectionEnabled(s.patternDetectionEnabled))
-        .catch(() => setDetectionEnabled(true))
-    }
-    load()
-    window.addEventListener('focus', load)
-    return () => window.removeEventListener('focus', load)
+    api
+      .getCaptureSettings()
+      .then((s) => setDetectionEnabled(s.patternDetectionEnabled))
+      .catch(() => setDetectionEnabled(true))
   }, [api])
 
   const { activePatterns, completedPatterns } = useMemo(() => {
-    const filtered = allPatterns?.filter((p) => p.sightingCount >= minSightings) ?? []
+    const filtered = patterns.filter((p) => p.sightingCount >= minSightings)
     const active = filtered
       .filter((p) => !p.completedAt)
       .sort((a, b) => b.sightingCount - a.sightingCount)
@@ -48,54 +44,48 @@ export function PatternsSection({ api }: PatternsSectionProps): React.JSX.Elemen
       .filter((p) => p.completedAt)
       .sort((a, b) => b.sightingCount - a.sightingCount)
     return { activePatterns: active, completedPatterns: completed }
-  }, [allPatterns, minSightings])
+  }, [patterns, minSightings])
 
   const handleApprove = useCallback(
     (id: string) => {
-      setAllPatterns((prev) =>
-        prev ? prev.map((p) => (p.id === id ? { ...p, approvedAt: Date.now() } : p)) : prev,
-      )
       toast.success('Thanks for the feedback!')
       api.approvePattern(id).catch(() => {
         // approval persisted best-effort
       })
+      onPatternsChange()
     },
-    [api],
+    [api, onPatternsChange],
   )
 
   const handleDismiss = useCallback(
     (id: string, name: string) => {
-      setAllPatterns((prev) => (prev ? prev.filter((p) => p.id !== id) : prev))
       toast.success(`Not useful — "${name}" hidden`)
       api.rejectPattern(id).catch(() => {
         // rejection persisted best-effort
       })
+      onPatternsChange()
     },
-    [api],
+    [api, onPatternsChange],
   )
 
   const handleComplete = useCallback(
     (id: string) => {
-      setAllPatterns((prev) =>
-        prev ? prev.map((p) => (p.id === id ? { ...p, completedAt: Date.now() } : p)) : prev,
-      )
       api.completePattern(id).catch(() => {
         // completion persisted best-effort
       })
+      onPatternsChange()
     },
-    [api],
+    [api, onPatternsChange],
   )
 
   const handleUncomplete = useCallback(
     (id: string) => {
-      setAllPatterns((prev) =>
-        prev ? prev.map((p) => (p.id === id ? { ...p, completedAt: null } : p)) : prev,
-      )
       api.uncompletePattern(id).catch(() => {
         // uncomplete persisted best-effort
       })
+      onPatternsChange()
     },
-    [api],
+    [api, onPatternsChange],
   )
 
   const [showCompleted, setShowCompleted] = useState(false)
@@ -141,8 +131,6 @@ export function PatternsSection({ api }: PatternsSectionProps): React.JSX.Elemen
     [api],
   )
 
-  if (allPatterns === null) return null
-
   if (detectionEnabled === false) {
     return (
       <div className="space-y-3">
@@ -168,8 +156,6 @@ export function PatternsSection({ api }: PatternsSectionProps): React.JSX.Elemen
     )
   }
 
-  if (allPatterns.length === 0) return null
-
   return (
     <div className="space-y-3">
       <div className="flex items-center justify-between">
@@ -178,7 +164,7 @@ export function PatternsSection({ api }: PatternsSectionProps): React.JSX.Elemen
       </div>
 
       <PatternFeedbackNudge
-        patterns={allPatterns ?? []}
+        patterns={patterns}
         onApprove={handleApprove}
         onDismiss={handleDismiss}
       />

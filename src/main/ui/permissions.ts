@@ -2,7 +2,9 @@
  * macOS permissions management for Accessibility and Screen Recording
  */
 
-import { systemPreferences, desktopCapturer, app } from 'electron'
+import path from 'node:path'
+import fs from 'node:fs'
+import { systemPreferences, desktopCapturer, app, dialog, shell } from 'electron'
 import log from '../logger'
 
 /**
@@ -22,6 +24,9 @@ export const ensurePermissions = async (): Promise<void> => {
 
   // Phase 2: Check and request Screen Recording permission
   await ensureScreenRecordingPermission()
+
+  // Phase 3: Prompt user to allow notifications during screen recording
+  await promptNotificationSettings()
 
   log.info('[Permissions] All permissions granted')
 }
@@ -59,6 +64,40 @@ const ensureAccessibilityPermission = async (): Promise<void> => {
       }
     }, POLL_INTERVAL_MS)
   })
+}
+
+const NOTIFICATION_PROMPT_MARKER = '.notification-settings-prompted'
+
+/**
+ * Prompt the user to enable "Allow notifications when mirroring or sharing the display"
+ * in macOS System Settings. Only shown once (marker file persists the dismissal).
+ */
+const promptNotificationSettings = async (): Promise<void> => {
+  const markerPath = path.join(app.getPath('userData'), NOTIFICATION_PROMPT_MARKER)
+
+  if (fs.existsSync(markerPath)) {
+    log.info('[Permissions] Notification settings prompt already shown, skipping')
+    return
+  }
+
+  log.info('[Permissions] Showing notification settings prompt')
+
+  const { response } = await dialog.showMessageBox({
+    type: 'info',
+    title: 'Allow Notifications',
+    message: 'macOS hides notifications while screen recording is active.',
+    detail:
+      'To keep seeing notifications, enable "Allow notifications when mirroring or sharing the display" in System Settings > Notifications.',
+    buttons: ['Open Settings', 'Skip'],
+    defaultId: 0,
+  })
+
+  if (response === 0) {
+    await shell.openExternal('x-apple.systempreferences:com.apple.Notifications-Settings')
+  }
+
+  fs.writeFileSync(markerPath, '', 'utf-8')
+  log.info('[Permissions] Notification settings prompt completed')
 }
 
 /**

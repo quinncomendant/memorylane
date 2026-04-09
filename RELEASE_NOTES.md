@@ -1,15 +1,13 @@
-# MemoryLane v0.19.0
+# MemoryLane v0.19.1
 
-New stepped onboarding flow that guides users from MCP setup through first pattern detection.
+Patch release: fixes a stuck Claude / Cursor MCP connection after upgrading from a pre-v0.18 build, and improves the CLI's diagnostics.
 
 ## What's Changed
 
-- Added stepped onboarding: Connect (pick MCP providers) -> Capture (progress bar) -> Dashboard
-- Added `openExternal` IPC for opening links in the default browser (https-only)
-- Added estimated hours per week to pattern cards
-- Increased minimum activities before pattern detection from 50 to 200
-- Renamed "Claude Desktop" to "Claude Cowork" in integrations
-- Simplified StatusLine to show capture state with animated indicator
+- Fixed startup MCP migration: stale `memorylane` entries pointing at the deleted in-asar `mcp-entry.js` are now rewritten to the standalone CLI invocation, even when the original `env` block is missing
+- Added a permission prompt for system notifications during screen recording (#DEU-15)
+- CLI now surfaces an actionable hint when `better-sqlite3` is missing its native binary
+- CLI README documents the Node LTS requirement and bindings troubleshooting steps
 
 ## Known Issues & Limitations
 
@@ -23,4 +21,4 @@ New stepped onboarding flow that guides users from MCP setup through first patte
 
 ## Full Changelog
 
-https://github.com/deusXmachina-dev/memorylane/compare/v0.18.0...v0.19.0
+https://github.com/deusXmachina-dev/memorylane/compare/v0.19.0...v0.19.1

@@ -1,13 +1,12 @@
-# MemoryLane v0.19.1
+# MemoryLane v0.20.0
 
-Patch release: fixes a stuck Claude / Cursor MCP connection after upgrading from a pre-v0.18 build, and improves the CLI's diagnostics.
+Enterprise edition: automatic and manual database sync to remote.
 
 ## What's Changed
 
-- Fixed startup MCP migration: stale `memorylane` entries pointing at the deleted in-asar `mcp-entry.js` are now rewritten to the standalone CLI invocation, even when the original `env` block is missing
-- Added a permission prompt for system notifications during screen recording (#DEU-15)
-- CLI now surfaces an actionable hint when `better-sqlite3` is missing its native binary
-- CLI README documents the Node LTS requirement and bindings troubleshooting steps
+- Added periodic database upload sync for enterprise edition — activated devices upload a backup to the enterprise backend every 24 hours
+- Added a "Sync to Remote" button in Advanced Settings for enterprise users to trigger an upload manually
+- Renamed `ENTERPRISE_LICENSE_CONFIG` to `ENTERPRISE_BACKEND_CONFIG` to reflect its broader scope
 
 ## Known Issues & Limitations
 
@@ -21,4 +20,4 @@ Patch release: fixes a stuck Claude / Cursor MCP connection after upgrading from
 
 ## Full Changelog
 
-https://github.com/deusXmachina-dev/memorylane/compare/v0.19.0...v0.19.1
+https://github.com/deusXmachina-dev/memorylane/compare/v0.19.1...v0.20.0

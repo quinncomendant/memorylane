@@ -28,9 +28,11 @@ import { SlackSemanticLayer } from './integrations/slack/semantic'
 import { PatternDetector } from './services/pattern-detector'
 import { UserContextBuilder } from './services/user-context-builder'
 import { RawDatabaseExportSync } from './services/raw-database-export-sync'
+import { DatabaseUploadSync } from './services/database-upload-sync'
 import { createMainRuntime, type MainRuntime } from './runtime'
 import { getAppDirectoryName } from './paths'
 import { loadAppEditionConfig } from './edition'
+import { ENTERPRISE_BACKEND_CONFIG } from '../shared/constants'
 
 // Keep single-instance behavior in packaged app, but allow dev to run
 // alongside production for local debugging.
@@ -70,6 +72,7 @@ let userContextBuilder: UserContextBuilder | null = null
 let patternDetector: PatternDetector | null = null
 let slackIntegrationService: SlackIntegrationService | null = null
 let rawDatabaseExportSync: RawDatabaseExportSync | null = null
+let databaseUploadSync: DatabaseUploadSync | null = null
 
 app.on('before-quit', () => {
   runtime?.accessProvider.stopPeriodicRefresh()
@@ -77,6 +80,7 @@ app.on('before-quit', () => {
     runtime?.dispose(),
     slackIntegrationService?.stop(),
     rawDatabaseExportSync?.stop(),
+    databaseUploadSync?.stop(),
   ])
 })
 
@@ -151,6 +155,16 @@ app.on('ready', async () => {
     getInstallationId: () => deviceIdentity.getPublicInstallationId(),
   })
   rawDatabaseExportSync.start()
+
+  if (editionConfig.edition === 'enterprise') {
+    databaseUploadSync = new DatabaseUploadSync({
+      storage: runtime.storage,
+      getDeviceId: () => deviceIdentity.getDeviceId(),
+      isActivated: () => runtime?.accessProvider.getAccessState().isEnterpriseActivated ?? false,
+      backendUrl: ENTERPRISE_BACKEND_CONFIG.BACKEND_URL,
+    })
+    databaseUploadSync.start()
+  }
 
   slackIntegrationService = new SlackIntegrationService(
     slackSettingsManager,

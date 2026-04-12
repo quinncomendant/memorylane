@@ -10,7 +10,7 @@ vi.mock('../logger', () => ({
 }))
 
 import { EnterpriseAccessProvider } from './enterprise-access-provider'
-import { ENTERPRISE_LICENSE_CONFIG } from '../../shared/constants'
+import { ENTERPRISE_BACKEND_CONFIG } from '../../shared/constants'
 import type { DeviceIdentity } from '../settings/device-identity'
 
 describe('EnterpriseAccessProvider', () => {
@@ -44,7 +44,7 @@ describe('EnterpriseAccessProvider', () => {
     })
 
     await provider.activateEnterpriseLicense('ACT-123')
-    await vi.advanceTimersByTimeAsync(ENTERPRISE_LICENSE_CONFIG.POLL_INTERVAL_MS)
+    await vi.advanceTimersByTimeAsync(ENTERPRISE_BACKEND_CONFIG.POLL_INTERVAL_MS)
 
     expect(updates[0]?.status).toBe('activating')
     expect(updates.at(-1)?.status).toBe('activated')

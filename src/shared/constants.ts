@@ -89,7 +89,7 @@ export const MANAGED_KEY_CONFIG = {
   KEY_REFRESH_INTERVAL_MS: 24 * 60 * 60 * 1000, // 24 hours
 }
 
-export const ENTERPRISE_LICENSE_CONFIG = {
+export const ENTERPRISE_BACKEND_CONFIG = {
   BACKEND_URL:
     process.env.NODE_ENV === 'development'
       ? 'http://localhost:8000/'

@@ -1,4 +1,4 @@
-import { ENTERPRISE_LICENSE_CONFIG } from '../../shared/constants'
+import { ENTERPRISE_BACKEND_CONFIG } from '../../shared/constants'
 import log from '../logger'
 import type { DeviceIdentity } from '../settings/device-identity'
 import { BaseAccessProvider } from './base-access-provider'
@@ -79,7 +79,7 @@ export class EnterpriseAccessProvider extends BaseAccessProvider {
     )
 
     const response = await fetch(
-      new URL('/license/activate', ENTERPRISE_LICENSE_CONFIG.BACKEND_URL),
+      new URL('/license/activate', ENTERPRISE_BACKEND_CONFIG.BACKEND_URL),
       {
         method: 'POST',
         headers: {
@@ -122,7 +122,7 @@ export class EnterpriseAccessProvider extends BaseAccessProvider {
 
     this.refreshTimer = setInterval(() => {
       void this.refreshAccessState()
-    }, ENTERPRISE_LICENSE_CONFIG.STATUS_REFRESH_INTERVAL_MS)
+    }, ENTERPRISE_BACKEND_CONFIG.STATUS_REFRESH_INTERVAL_MS)
     this.refreshTimer.unref?.()
   }
 
@@ -140,7 +140,7 @@ export class EnterpriseAccessProvider extends BaseAccessProvider {
 
     this.pollTimer = setInterval(() => {
       void this.pollForActivation(deviceId)
-    }, ENTERPRISE_LICENSE_CONFIG.POLL_INTERVAL_MS)
+    }, ENTERPRISE_BACKEND_CONFIG.POLL_INTERVAL_MS)
 
     this.timeoutTimer = setTimeout(() => {
       log.warn('[EnterpriseAccess] Activation polling timed out')
@@ -151,7 +151,7 @@ export class EnterpriseAccessProvider extends BaseAccessProvider {
           error: 'Activation timed out while waiting for key provisioning.',
         }),
       )
-    }, ENTERPRISE_LICENSE_CONFIG.ACTIVATION_TIMEOUT_MS)
+    }, ENTERPRISE_BACKEND_CONFIG.ACTIVATION_TIMEOUT_MS)
   }
 
   private async pollForActivation(deviceId: string): Promise<void> {
@@ -187,7 +187,7 @@ export class EnterpriseAccessProvider extends BaseAccessProvider {
   }
 
   private async fetchEnterpriseStatus(deviceId: string): Promise<boolean> {
-    const url = new URL('/license/status', ENTERPRISE_LICENSE_CONFIG.BACKEND_URL)
+    const url = new URL('/license/status', ENTERPRISE_BACKEND_CONFIG.BACKEND_URL)
     url.searchParams.set('device_id', deviceId)
 
     const response = await fetch(url.toString())
@@ -204,7 +204,7 @@ export class EnterpriseAccessProvider extends BaseAccessProvider {
   }
 
   private async fetchEnterpriseKey(deviceId: string): Promise<string | null> {
-    const url = new URL('/license/key', ENTERPRISE_LICENSE_CONFIG.BACKEND_URL)
+    const url = new URL('/license/key', ENTERPRISE_BACKEND_CONFIG.BACKEND_URL)
     url.searchParams.set('device_id', deviceId)
 
     const response = await fetch(url.toString())

@@ -3,14 +3,17 @@ import { toast } from 'sonner'
 import { Button } from '@components/ui/button'
 import { Input } from '@components/ui/input'
 import { Label } from '@components/ui/label'
+import type { AppEditionConfig } from '@/shared/edition'
 import type { MainWindowAPI } from '@types'
 import { IntegrationsSection } from '../IntegrationsSection'
 import { DatabaseExportSection } from '../DatabaseExportSection'
+import { DatabaseSyncSection } from '../DatabaseSyncSection'
 import { SectionToggle } from './SectionToggle'
 import { SubSectionToggle } from './SubSectionToggle'
 
 interface ConnectionsDataSectionProps {
   api: MainWindowAPI
+  editionConfig: AppEditionConfig | null
   open: boolean
   onToggle: () => void
   databaseExportDirectory: string
@@ -19,6 +22,7 @@ interface ConnectionsDataSectionProps {
 
 export function ConnectionsDataSection({
   api,
+  editionConfig,
   open,
   onToggle,
   databaseExportDirectory,
@@ -58,7 +62,10 @@ export function ConnectionsDataSection({
 
           <div className="space-y-2">
             <Label className="text-xs text-muted-foreground">Manual Export</Label>
-            <DatabaseExportSection api={api} />
+            <div className="flex gap-2">
+              <DatabaseExportSection api={api} />
+              {editionConfig?.edition === 'enterprise' && <DatabaseSyncSection api={api} />}
+            </div>
           </div>
 
           <div className="pl-2">

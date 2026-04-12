@@ -282,6 +282,7 @@ export function AdvancedSettingsPage({ onBack }: { onBack: () => void }): React.
 
           <ConnectionsDataSection
             api={api}
+            editionConfig={editionConfig}
             open={connectionsDataOpen}
             onToggle={() => setConnectionsDataOpen((v) => !v)}
             databaseExportDirectory={form.databaseExportDirectory}

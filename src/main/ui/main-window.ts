@@ -90,6 +90,9 @@ interface MainWindowDependencies {
   databaseExportSync: {
     onSettingsChanged: () => Promise<void>
   }
+  databaseUploadSync?: {
+    triggerUpload: () => Promise<{ success: boolean; error?: string }>
+  }
 }
 
 let mainWindow: BrowserWindow | null = null
@@ -605,6 +608,13 @@ export function initMainWindowIPC(dependencies: MainWindowDependencies): void {
       return { success: false, error: 'Dependencies not initialized' }
     }
     return exportDatabaseZip({ storage: deps.storage, parentWindow: getMainWindow() })
+  })
+
+  ipcMain.handle('main-window:syncDatabaseToRemote', async () => {
+    if (!deps?.databaseUploadSync) {
+      return { success: false, error: 'Not available' }
+    }
+    return deps.databaseUploadSync.triggerUpload()
   })
 
   // Capture settings

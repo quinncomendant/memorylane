@@ -241,6 +241,7 @@ app.on('ready', async () => {
     reconfigureCaptureHotkey,
     updateExclusions: (exclusions) => runtime?.updateExclusions(exclusions),
     databaseExportSync: rawDatabaseExportSync,
+    databaseUploadSync: databaseUploadSync ?? undefined,
   })
 
   await slackIntegrationService.reload()

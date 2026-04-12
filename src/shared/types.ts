@@ -275,6 +275,7 @@ export interface MainWindowAPI {
   chooseDatabaseExportDirectory: (initialPath?: string) => Promise<DirectorySelectionResult>
   // Database export
   exportDatabaseZip: () => Promise<DatabaseExportResult>
+  syncDatabaseToRemote: () => Promise<{ success: boolean; error?: string }>
   // Updater
   getUpdateState: () => Promise<UpdateState>
   onUpdateStateChanged: (callback: (state: UpdateState) => void) => void

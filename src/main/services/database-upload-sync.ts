@@ -49,6 +49,16 @@ export class DatabaseUploadSync {
     void this.queueUpload('startup')
   }
 
+  public async triggerUpload(): Promise<{ success: boolean; error?: string }> {
+    try {
+      await this.queueUpload('manual')
+      return { success: true }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Upload failed'
+      return { success: false, error: message }
+    }
+  }
+
   public async stop(): Promise<void> {
     if (this.timer !== null) {
       clearInterval(this.timer)

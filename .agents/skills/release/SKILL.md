@@ -72,7 +72,7 @@ npm run lint
 Stage only the files you changed:
 
 ```bash
-git add package.json RELEASE_NOTES.md
+git add package.json package-lock.json RELEASE_NOTES.md
 # Add README.md only if it changed for this release.
 git add README.md
 git commit -m "release: vX.Y.Z"
@@ -127,6 +127,7 @@ Pushing the tag triggers `.github/workflows/release.yml`. That workflow builds b
 Before finishing, verify:
 
 - [ ] `package.json` version matches the new tag
+- [ ] `package-lock.json` version matches the new tag
 - [ ] `RELEASE_NOTES.md` title and changelog link reference the new version
 - [ ] Resolved known issues are removed from release notes
 - [ ] `README.md` "Coming Soon" doesn't list shipped features

@@ -1,11 +1,11 @@
-# MemoryLane v0.21.0
+# MemoryLane v0.22.0
 
-Enterprise privacy hardening and backend URL improvements.
+Upload privacy controls and Slack removal.
 
 ## What's Changed
 
-- Database uploads now strip sensitive data (OCR text, FTS indexes) before sending to the enterprise backend, keeping only activities, patterns, sightings, and vector embeddings
-- Enterprise backend URL uses `/api` prefix and is configurable via `MEMORYLANE_BACKEND_URL` environment variable
+- Enterprise uploads now support a Summary/Detailed toggle — Summary (default) strips OCR text and FTS index; Detailed preserves them. Both modes strip personal context and pattern detection runs
+- Removed Slack integration
 
 ## Known Issues & Limitations
 
@@ -19,4 +19,4 @@ Enterprise privacy hardening and backend URL improvements.
 
 ## Full Changelog
 
-https://github.com/deusXmachina-dev/memorylane/compare/v0.20.3...v0.21.0
+https://github.com/deusXmachina-dev/memorylane/compare/v0.21.0...v0.22.0

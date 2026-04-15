@@ -2,13 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { toast } from 'sonner'
 import { useMainWindowAPI } from '@/renderer/hooks/use-main-window-api'
 import type { AppEditionConfig } from '@/shared/edition'
-import type {
-  CaptureSettings,
-  CustomEndpointStatus,
-  KeyStatus,
-  SemanticPipelineMode,
-  SlackIntegrationStatus,
-} from '@types'
+import type { CaptureSettings, CustomEndpointStatus, KeyStatus, SemanticPipelineMode } from '@types'
 import { AiModelsSection } from './components/advanced-settings/AiModelsSection'
 import { CapturePrivacySection } from './components/advanced-settings/CapturePrivacySection'
 import { ConnectionsDataSection } from './components/advanced-settings/ConnectionsDataSection'
@@ -22,25 +16,22 @@ export function AdvancedSettingsPage({ onBack }: { onBack: () => void }): React.
   const [form, setForm] = useState<CaptureSettings | null>(null)
   const [endpointStatus, setEndpointStatus] = useState<CustomEndpointStatus | null>(null)
   const [keyStatus, setKeyStatus] = useState<KeyStatus | null>(null)
-  const [, setSlackStatus] = useState<SlackIntegrationStatus | null>(null)
   const [aiModelsOpen, setAiModelsOpen] = useState(false)
   const [capturePrivacyOpen, setCapturePrivacyOpen] = useState(false)
   const [connectionsDataOpen, setConnectionsDataOpen] = useState(false)
   const [recordingHotkey, setRecordingHotkey] = useState(false)
 
   const load = useCallback(async () => {
-    const [config, captureSettings, endpoint, key, slack] = await Promise.all([
+    const [config, captureSettings, endpoint, key] = await Promise.all([
       api.getEditionConfig(),
       api.getCaptureSettings(),
       api.getCustomEndpoint(),
       api.getKeyStatus(),
-      api.getSlackSettings(),
     ])
     setEditionConfig(config)
     setForm(captureSettings)
     setEndpointStatus(endpoint)
     setKeyStatus(key)
-    setSlackStatus(slack)
   }, [api])
 
   useEffect(() => {

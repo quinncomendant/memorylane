@@ -37,17 +37,6 @@ contextBridge.exposeInMainWorld('mainWindowAPI', {
   deleteCustomEndpoint: () => ipcRenderer.invoke('main-window:deleteCustomEndpoint'),
   getLlmHealth: () => ipcRenderer.invoke('main-window:getLlmHealth'),
   testLlmConnection: () => ipcRenderer.invoke('main-window:testLlmConnection'),
-  // Slack integration
-  getSlackSettings: () => ipcRenderer.invoke('main-window:getSlackSettings'),
-  saveSlackSettings: (config: {
-    enabled: boolean
-    ownerUserId: string
-    watchedChannelIds: string
-    pollIntervalMs: number
-    allwaysApprove: boolean
-    botToken?: string
-  }) => ipcRenderer.invoke('main-window:saveSlackSettings', config),
-  resetSlackSettings: () => ipcRenderer.invoke('main-window:resetSlackSettings'),
   // Subscription
   startCheckout: (plan: string) => ipcRenderer.invoke('main-window:startCheckout', plan),
   openSubscriptionPortal: () => ipcRenderer.invoke('main-window:openSubscriptionPortal'),

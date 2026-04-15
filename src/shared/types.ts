@@ -90,27 +90,6 @@ export interface LlmHealthStatus {
   lastAttemptAt: number | null
 }
 
-export interface SlackIntegrationConfig {
-  enabled: boolean
-  ownerUserId: string
-  watchedChannelIds: string
-  pollIntervalMs: number
-  allwaysApprove: boolean
-  botToken?: string | undefined
-}
-
-export interface SlackIntegrationStatus {
-  enabled: boolean
-  running: boolean
-  hasBotToken: boolean
-  maskedBotToken: string | null
-  ownerUserId: string
-  watchedChannelIds: string
-  pollIntervalMs: number
-  allwaysApprove: boolean
-  lastError: string | null
-}
-
 export type SubscriptionPlan = 'explorer'
 
 export type SubscriptionStatus = 'idle' | 'awaiting_checkout' | 'polling' | 'error'
@@ -247,10 +226,6 @@ export interface MainWindowAPI {
   deleteCustomEndpoint: () => Promise<SaveResult>
   getLlmHealth: () => Promise<LlmHealthStatus>
   testLlmConnection: () => Promise<void>
-  // Slack integration
-  getSlackSettings: () => Promise<SlackIntegrationStatus>
-  saveSlackSettings: (config: SlackIntegrationConfig) => Promise<SaveResult>
-  resetSlackSettings: () => Promise<SaveResult>
   // Subscription
   startCheckout: (plan: SubscriptionPlan) => Promise<void>
   openSubscriptionPortal: () => Promise<void>

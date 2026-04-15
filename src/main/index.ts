@@ -27,9 +27,6 @@ import { CaptureStateManager } from './settings/capture-state-manager'
 import { CaptureSettingsManager } from './settings/capture-settings-manager'
 import { DeviceIdentity } from './settings/device-identity'
 import { migrateOldMcpEntries } from './integrations'
-import { SlackIntegrationService } from './integrations/slack/service'
-import { SlackSettingsManager } from './integrations/slack/settings-manager'
-import { SlackSemanticLayer } from './integrations/slack/semantic'
 import { PatternDetector } from './services/pattern-detector'
 import { UserContextBuilder } from './services/user-context-builder'
 import { RawDatabaseExportSync } from './services/raw-database-export-sync'
@@ -75,18 +72,12 @@ app.on('window-all-closed', () => {
 let runtime: MainRuntime | null = null
 let userContextBuilder: UserContextBuilder | null = null
 let patternDetector: PatternDetector | null = null
-let slackIntegrationService: SlackIntegrationService | null = null
 let rawDatabaseExportSync: RawDatabaseExportSync | null = null
 let databaseUploadSync: DatabaseUploadSync | null = null
 
 app.on('before-quit', () => {
   runtime?.accessProvider.stopPeriodicRefresh()
-  void Promise.all([
-    runtime?.dispose(),
-    slackIntegrationService?.stop(),
-    rawDatabaseExportSync?.stop(),
-    databaseUploadSync?.stop(),
-  ])
+  void Promise.all([runtime?.dispose(), rawDatabaseExportSync?.stop(), databaseUploadSync?.stop()])
 })
 
 app.on('will-quit', () => {
@@ -124,7 +115,6 @@ app.on('ready', async () => {
 
   const captureSettingsManager = new CaptureSettingsManager()
   const captureStateManager = new CaptureStateManager()
-  const slackSettingsManager = new SlackSettingsManager()
   const deviceIdentity = new DeviceIdentity()
   captureSettingsManager.applyToConstants()
   const initialCaptureSettings = captureSettingsManager.get()
@@ -170,14 +160,6 @@ app.on('ready', async () => {
     })
     databaseUploadSync.start()
   }
-
-  slackIntegrationService = new SlackIntegrationService(
-    slackSettingsManager,
-    new SlackSemanticLayer({
-      activities: runtime.storage.activities,
-      apiKeyManager: runtime.apiKeyManager,
-    }),
-  )
 
   userContextBuilder = new UserContextBuilder(runtime.storage, runtime.apiKeyManager)
   patternDetector = new PatternDetector(runtime.storage, runtime.apiKeyManager)
@@ -239,8 +221,6 @@ app.on('ready', async () => {
     semanticService: runtime.semanticService,
     accessProvider: runtime.accessProvider,
     captureSettingsManager,
-    slackSettingsManager,
-    slackIntegrationService,
     patternDetector: patternDetector ?? undefined,
     getCaptureHotkeyLabel: hotkeyManager.getLabel,
     reconfigureCaptureHotkey,
@@ -248,8 +228,6 @@ app.on('ready', async () => {
     databaseExportSync: rawDatabaseExportSync,
     databaseUploadSync: databaseUploadSync ?? undefined,
   })
-
-  await slackIntegrationService.reload()
 
   runtime.accessProvider.startPeriodicRefresh()
 
